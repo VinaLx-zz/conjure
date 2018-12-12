@@ -10,6 +10,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "./function-wrapper.h"
+#include "./stack.h"
+
 namespace conjure::routine::detail {
 
 struct Context;
@@ -28,43 +31,25 @@ namespace conjure::routine {
 namespace detail {
 
 struct CalleeSavedRegs {
-    uint64_t rbx;
-    uint64_t rbp;
-    uint64_t r12;
-    uint64_t r13;
-    uint64_t r14;
-    uint64_t r15;
+    uint64_t rbx = 0;
+    uint64_t rbp = 0;
+    uint64_t r12 = 0;
+    uint64_t r13 = 0;
+    uint64_t r14 = 0;
+    uint64_t r15 = 0;
 };
 
 struct Context {
     Context(void *stack_ptr, void *return_addr)
         : stack_ptr(stack_ptr), return_addr(return_addr) {}
+
     detail::CalleeSavedRegs registers;
-    void *stack_ptr;
-    void *return_addr;
+
+    void *stack_ptr = nullptr;
+    void *return_addr = nullptr;
 };
 
 } // namespace detail
-
-template <typename F, typename... Args>
-struct RoutineWrapper {
-    using CallerT = void (*)(RoutineWrapper *);
-
-    template <typename... FwdArgs>
-    RoutineWrapper(F f, FwdArgs &&... args)
-        : f(std::move(f)),
-          args(std::make_tuple(std::forward<FwdArgs>(args)...)) {}
-    F f;
-    std::tuple<Args...> args;
-};
-
-template <typename F, typename... Args>
-void CallWrapper(RoutineWrapper<F, Args...> *this_) {
-    int a;
-    printf("stack approximate: %p\n", &a);
-    printf("calling wrapper with this %p, f: %p\n", this_, this_->f);
-    std::apply(this_->f, std::move(this_->args));
-}
 
 struct Config {
     static constexpr int kDefaultStackSize = 16 * 1024;
@@ -92,15 +77,12 @@ class Conjure {
 
     template <typename F, typename... Args>
     struct WrappedFunc : FuncProxy {
-        using WrapperT = RoutineWrapper<F, Args...>;
+        using WrapperT = FunctionWrapper<F, Args...>;
 
-        template <typename... FwdArgs>
-        WrappedFunc(F f, FwdArgs &&... args)
-            : wrapper(std::move(f), std::forward<FwdArgs>(args)...) {}
+        template <typename W>
+        WrappedFunc(W &&w) : wrapper(std::forward<W>(w)) {}
 
         virtual void SwitchAndCall(detail::Context &from, detail::Context &to) {
-            to.return_addr =
-                (void *)(static_cast<typename WrapperT::CallerT>(&CallWrapper));
             printf(
                 "target stack: %p, wrapper addr: %p\n", to.stack_ptr, &wrapper);
             ContextSwitch(&wrapper, &from, &to);
@@ -116,10 +98,11 @@ class Conjure {
     Conjure() : context(nullptr, nullptr) {}
 
     template <typename F, typename... Args>
-    Conjure(F f, Args &&... args) : Conjure() {
-        using WrappedT = WrappedFunc<F, std::decay_t<Args>...>;
-        func_ = std::make_unique<WrappedT>(
-            std::move(f), std::forward<Args>(args)...);
+    Conjure(Stack stk, FunctionWrapper<F, Args...> wrapper)
+        : stack(std::move(stk)),
+          context(stack.stack_start, wrapper.CallAddress()),
+          func_(std::make_unique<WrappedFunc<F, Args...>>(std::move(wrapper))) {
+        printf("coroutine stack: %p\n", context.stack_ptr);
     }
 
     void ResumeFrom(Conjure &from) {
@@ -141,6 +124,7 @@ class Conjure {
         to.ResumeFrom(*this);
     }
 
+    Stack stack;
     detail::Context context;
     State state = State::kInitial;
 
@@ -161,18 +145,18 @@ struct Conjurer {
     }
 
     static uint64_t Align(uint64_t addr) {
-        return (addr + 15) / 16 * 16 + 8;
+        return addr / 16 * 16 - 8;
     }
 
     template <typename F, typename... Args>
     Conjure *NewRoutine(const Config &config, F f, Args &&... args) {
-        Conjure *c = routines_
-                         .emplace_back(std::make_unique<Conjure>(
-                             std::move(f), std::forward<Args>(args)...))
-                         .get();
-        uint64_t addr = (uint64_t)malloc(config.stack_size);
-        c->context.stack_ptr = (void *)(Align(addr));
-        printf("allocating stack: %p\n", c->context.stack_ptr);
+        Stack stack(config.stack_size);
+        Conjure *c =
+            routines_
+                .emplace_back(std::make_unique<Conjure>(
+                    std::move(stack),
+                    WrapCall(std::move(f), std::forward<Args>(args)...)))
+                .get();
         parent_map_[c] = active_routine_;
         name_map_[c] = config.routine_name;
         return c;
