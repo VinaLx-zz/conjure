@@ -95,40 +95,45 @@ class Conjure {
 
     using Pointer = std::unique_ptr<Conjure>;
 
-    Conjure() : context(nullptr, nullptr) {}
+    Conjure() : context_(nullptr, nullptr) {}
 
     template <typename F, typename... Args>
     Conjure(Stack stk, FunctionWrapper<F, Args...> wrapper)
-        : stack(std::move(stk)),
-          context(stack.stack_start, wrapper.CallAddress()),
+        : stack_(std::move(stk)),
+          context_(stack_.stack_start, wrapper.CallAddress()),
           func_(std::make_unique<WrappedFunc<F, Args...>>(std::move(wrapper))) {
-        printf("coroutine stack: %p\n", context.stack_ptr);
+        printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
     void ResumeFrom(Conjure &from) {
-        if (state == State::kFinished) {
+        if (state_ == State::kFinished) {
             return;
         }
         // assert(state != State::kRunning);
 
-        if (state == State::kInitial) {
-            state = State::kRunning;
-            func_->SwitchAndCall(from.context, context);
+        if (state_ == State::kInitial) {
+            state_ = State::kRunning;
+            func_->SwitchAndCall(from.context_, context_);
         } else {
-            state = State::kRunning;
-            ContextSwitch(nullptr, &from.context, &context);
+            state_ = State::kRunning;
+            ContextSwitch(nullptr, &from.context_, &context_);
         }
     }
 
-    void YieldTo(Conjure &to) {
+    void YieldAndSetState(State s, Conjure &to) {
+        state_ = s;
         to.ResumeFrom(*this);
     }
 
-    Stack stack;
-    detail::Context context;
-    State state = State::kInitial;
+    State GetState() const {
+        return state_;
+    }
 
   private:
+    Stack stack_;
+    detail::Context context_;
+    State state_ = State::kInitial;
+
     FuncProxy::Pointer func_;
 };
 
@@ -142,10 +147,6 @@ struct Conjurer {
     static Conjurer &Instance() {
         static Conjurer conjurer;
         return conjurer;
-    }
-
-    static uint64_t Align(uint64_t addr) {
-        return addr / 16 * 16 - 8;
     }
 
     template <typename F, typename... Args>
@@ -163,26 +164,23 @@ struct Conjurer {
     }
 
     void Yield() {
-        active_routine_->state = Conjure::State::kWaiting;
         Resume(parent_map_[active_routine_]);
     }
 
     void Resume(Conjure *co) {
-        active_routine_->state = Conjure::State::kWaiting;
-        ResumeImpl(co);
+        ResumeImpl(Conjure::State::kWaiting, co);
     }
 
-    void ResumeImpl(Conjure *co) {
+    void ResumeImpl(Conjure::State s, Conjure *co) {
         Conjure *from = active_routine_, *to = co;
         active_routine_ = to;
         printf("%s yield to %s\n", NameOf(from), NameOf(to));
-        from->YieldTo(*to);
+        from->YieldAndSetState(s, *to);
     }
 
     void Exit() {
-        active_routine_->state = Conjure::State::kFinished;
         printf("%s exitted\n", Name(active_routine_));
-        ResumeImpl(parent_map_[active_routine_]);
+        ResumeImpl(Conjure::State::kFinished, parent_map_[active_routine_]);
     }
 
     const char *NameOf(Conjure *c) {
