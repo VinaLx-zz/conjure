@@ -40,13 +40,13 @@ struct CalleeSavedRegs {
 };
 
 struct Context {
-    Context(void *stack_ptr, void *return_addr)
+    Context(void *stack_ptr = nullptr, void *return_addr = nullptr)
         : stack_ptr(stack_ptr), return_addr(return_addr) {}
 
     detail::CalleeSavedRegs registers;
 
-    void *stack_ptr = nullptr;
-    void *return_addr = nullptr;
+    void *stack_ptr;
+    void *return_addr;
 };
 
 } // namespace detail
@@ -67,29 +67,6 @@ class Conjure;
 const char *Name(Conjure *c);
 
 class Conjure {
-    struct FuncProxy {
-        using Pointer = std::unique_ptr<FuncProxy>;
-        virtual void
-        SwitchAndCall(detail::Context &from, detail::Context &to) = 0;
-
-        virtual ~FuncProxy() = default;
-    };
-
-    template <typename F, typename... Args>
-    struct WrappedFunc : FuncProxy {
-        using WrapperT = FunctionWrapper<F, Args...>;
-
-        template <typename W>
-        WrappedFunc(W &&w) : wrapper(std::forward<W>(w)) {}
-
-        virtual void SwitchAndCall(detail::Context &from, detail::Context &to) {
-            printf(
-                "target stack: %p, wrapper addr: %p\n", to.stack_ptr, &wrapper);
-            ContextSwitch(&wrapper, &from, &to);
-        }
-        WrapperT wrapper;
-    };
-
   public:
     enum class State { kInitial, kWaiting, kRunning, kFinished };
 
@@ -97,11 +74,7 @@ class Conjure {
 
     Conjure() : context_(nullptr, nullptr) {}
 
-    template <typename F, typename... Args>
-    Conjure(Stack stk, FunctionWrapper<F, Args...> wrapper)
-        : stack_(std::move(stk)),
-          context_(stack_.stack_start, wrapper.CallAddress()),
-          func_(std::make_unique<WrappedFunc<F, Args...>>(std::move(wrapper))) {
+    Conjure(Stack stk) : stack_(std::move(stk)), context_(stack_.stack_start) {
         printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
@@ -113,7 +86,7 @@ class Conjure {
 
         if (state_ == State::kInitial) {
             state_ = State::kRunning;
-            func_->SwitchAndCall(from.context_, context_);
+            ContextSwitch(func_wrapper_this_, &from.context_, &context_);
         } else {
             state_ = State::kRunning;
             ContextSwitch(nullptr, &from.context_, &context_);
@@ -129,12 +102,53 @@ class Conjure {
         return state_;
     }
 
-  private:
+  protected:
     Stack stack_;
     detail::Context context_;
     State state_ = State::kInitial;
 
-    FuncProxy::Pointer func_;
+    void *func_wrapper_this_;
+};
+
+template <typename Result>
+class ConjureClient : public Conjure {
+    struct ResultStore {
+        virtual std::optional<Result> Get() = 0;
+        virtual ~ResultStore() = default;
+    };
+    template <typename F, typename... Args>
+    struct ResultStoreImpl : ResultStore {
+        using WrapperT = FunctionWrapper<F, Args...>;
+
+        ResultStoreImpl(FunctionWrapper<F, Args...> w)
+            : wrapper(std::move(w)) {}
+
+        virtual std::optional<Result> Get() override {
+            std::optional<Result> result = std::move(wrapper.result_);
+            wrapper.result_.reset();
+            return result; // RVO
+        }
+
+        WrapperT wrapper;
+    };
+
+  public:
+    template <typename F, typename... Args>
+    ConjureClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
+        : Conjure(std::move(stack)) {
+        auto result_store_impl =
+            std::make_unique<ResultStoreImpl<F, Args...>>(std::move(wrapper));
+        this->func_wrapper_this_ = &result_store_impl->wrapper;
+        this->context_.return_addr = result_store_impl->wrapper.CallAddress();
+        result_ = std::move(result_store_impl);
+    }
+
+    Result UnsafeGetResult() {
+        return result_->Get().value();
+    }
+
+  private:
+    std::unique_ptr<ResultStore> result_;
 };
 
 struct Conjurer {
@@ -150,17 +164,20 @@ struct Conjurer {
     }
 
     template <typename F, typename... Args>
-    Conjure *NewRoutine(const Config &config, F f, Args &&... args) {
+    auto NewRoutine(const Config &config, F f, Args &&... args) {
+        using R = typename WrapperT<F, Args...>::ResultT;
         Stack stack(config.stack_size);
-        Conjure *c =
-            routines_
-                .emplace_back(std::make_unique<Conjure>(
-                    std::move(stack),
-                    WrapCall(std::move(f), std::forward<Args>(args)...)))
-                .get();
-        parent_map_[c] = active_routine_;
-        name_map_[c] = config.routine_name;
-        return c;
+
+        auto co = std::make_unique<ConjureClient<R>>(
+            std::move(stack),
+            WrapCall(std::move(f), std::forward<Args>(args)...));
+
+        ConjureClient<R> *co_client = co.get();
+        routines_.push_back(std::move(co));
+
+        parent_map_[co_client] = active_routine_;
+        name_map_[co_client] = config.routine_name;
+        return co_client;
     }
 
     void Yield() {
