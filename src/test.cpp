@@ -17,7 +17,7 @@ void f(int limit) {
     puts("Gee created");
     for (int i = 0; i < limit; ++i) {
         printf("co f: %d\n", i);
-        if (co->GetState() != Conjure::State::kFinished) {
+        if (co->GetState() != Conjury::State::kFinished) {
             Resume(co);
         }
         Yield();
@@ -34,7 +34,7 @@ int main() {
     Resume(co);
     for (int i = 0; i < 15; ++i) {
         printf("main: %d\n", i);
-        if (co->GetState() != Conjure::State::kFinished) {
+        if (co->GetState() != Conjury::State::kFinished) {
             Resume(co);
         }
     }

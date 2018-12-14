@@ -62,23 +62,23 @@ struct Config {
     std::string routine_name;
 };
 
-class Conjure;
+class Conjury;
 
-const char *Name(Conjure *c);
+const char *Name(Conjury *c);
 
-class Conjure {
+class Conjury {
   public:
     enum class State { kInitial, kWaiting, kRunning, kFinished };
 
-    using Pointer = std::unique_ptr<Conjure>;
+    using Pointer = std::unique_ptr<Conjury>;
 
-    Conjure() : context_(nullptr, nullptr) {}
+    Conjury() : context_(nullptr, nullptr) {}
 
-    Conjure(Stack stk) : stack_(std::move(stk)), context_(stack_.stack_start) {
+    Conjury(Stack stk) : stack_(std::move(stk)), context_(stack_.stack_start) {
         printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
-    void ResumeFrom(Conjure &from) {
+    void ResumeFrom(Conjury &from) {
         if (state_ == State::kFinished) {
             return;
         }
@@ -93,7 +93,7 @@ class Conjure {
         }
     }
 
-    void YieldAndSetState(State s, Conjure &to) {
+    void YieldAndSetState(State s, Conjury &to) {
         state_ = s;
         to.ResumeFrom(*this);
     }
@@ -111,13 +111,13 @@ class Conjure {
 };
 
 template <typename F, typename... Args>
-void ConjureCallWrapper(FunctionWrapper<F, Args...> *this_) {
+void ConjuryCallWrapper(FunctionWrapper<F, Args...> *this_) {
     this_->Call();
     Return();
 }
 
 template <typename Result>
-class ConjureClient : public Conjure {
+class ConjuryClient : public Conjury {
     struct ResultStore {
         virtual std::optional<Result> Get() = 0;
         virtual ~ResultStore() = default;
@@ -142,14 +142,14 @@ class ConjureClient : public Conjure {
     using ResultT = Result;
 
     template <typename F, typename... Args>
-    ConjureClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
-        : Conjure(std::move(stack)) {
+    ConjuryClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
+        : Conjury(std::move(stack)) {
         auto result_store_impl =
             std::make_unique<ResultStoreImpl<F, Args...>>(std::move(wrapper));
         this->func_wrapper_this_ = &result_store_impl->wrapper;
         this->context_.return_addr =
             (void *)static_cast<typename FunctionWrapper<F, Args...>::CallerT>(
-                &ConjureCallWrapper);
+                &ConjuryCallWrapper);
         result_ = std::move(result_store_impl);
     }
 
@@ -163,7 +163,7 @@ class ConjureClient : public Conjure {
 
 struct Conjurer {
     Conjurer() {
-        routines_.push_back(std::make_unique<Conjure>());
+        routines_.push_back(std::make_unique<Conjury>());
         active_routine_ = routines_.back().get();
         name_map_[active_routine_] = "Main";
     }
@@ -178,11 +178,11 @@ struct Conjurer {
         using R = typename WrapperT<F, Args...>::ResultT;
         Stack stack(config.stack_size);
 
-        auto co = std::make_unique<ConjureClient<R>>(
+        auto co = std::make_unique<ConjuryClient<R>>(
             std::move(stack),
             WrapCall(std::move(f), std::forward<Args>(args)...));
 
-        ConjureClient<R> *co_client = co.get();
+        ConjuryClient<R> *co_client = co.get();
         routines_.push_back(std::move(co));
 
         parent_map_[co_client] = active_routine_;
@@ -194,12 +194,12 @@ struct Conjurer {
         Resume(parent_map_[active_routine_]);
     }
 
-    void Resume(Conjure *co) {
-        ResumeImpl(Conjure::State::kWaiting, co);
+    void Resume(Conjury *co) {
+        ResumeImpl(Conjury::State::kWaiting, co);
     }
 
-    void ResumeImpl(Conjure::State s, Conjure *co) {
-        Conjure *from = active_routine_, *to = co;
+    void ResumeImpl(Conjury::State s, Conjury *co) {
+        Conjury *from = active_routine_, *to = co;
         active_routine_ = to;
         printf("%s yield to %s\n", NameOf(from), NameOf(to));
         from->YieldAndSetState(s, *to);
@@ -207,21 +207,21 @@ struct Conjurer {
 
     void Exit() {
         printf("%s exitted\n", Name(active_routine_));
-        ResumeImpl(Conjure::State::kFinished, parent_map_[active_routine_]);
+        ResumeImpl(Conjury::State::kFinished, parent_map_[active_routine_]);
     }
 
-    const char *NameOf(Conjure *c) {
+    const char *NameOf(Conjury *c) {
         return name_map_[c].data();
     }
-    std::unordered_map<Conjure *, std::string> name_map_;
+    std::unordered_map<Conjury *, std::string> name_map_;
 
   private:
-    Conjure *active_routine_ = nullptr;
-    std::unordered_map<Conjure *, Conjure *> parent_map_;
-    std::vector<Conjure::Pointer> routines_;
+    Conjury *active_routine_ = nullptr;
+    std::unordered_map<Conjury *, Conjury *> parent_map_;
+    std::vector<Conjury::Pointer> routines_;
 };
 
-const char *Name(Conjure *c) {
+const char *Name(Conjury *c) {
     return Conjurer::Instance().NameOf(c);
 }
 
@@ -230,7 +230,7 @@ inline void Yield() {
 }
 
 template <typename F, typename... Args>
-Conjure *NewRoutine(const Config &config, F f, Args &&... args) {
+Conjury *NewRoutine(const Config &config, F f, Args &&... args) {
     return Conjurer::Instance().NewRoutine(
         config, std::move(f), std::forward<Args>(args)...);
 }
@@ -239,7 +239,7 @@ inline void Return() {
     Conjurer::Instance().Exit();
 }
 
-inline void Resume(Conjure *c) {
+inline void Resume(Conjury *c) {
     Conjurer::Instance().Resume(c);
 }
 
