@@ -3,30 +3,30 @@
 
 #include <memory>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string>
-#include <tuple>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 #include "./function-wrapper.h"
 #include "./stack.h"
 
-namespace conjure::routine::detail {
+namespace conjure::detail {
 
 struct Context;
 
-} // namespace conjure::routine::detail
+} // namespace conjure::detail
 
 extern "C" {
 
 void ContextSwitch(
-    void *this_, conjure::routine::detail::Context *from,
-    conjure::routine::detail::Context *to) asm("ContextSwitch");
-}
+    void *this_, conjure::detail::Context *from,
+    conjure::detail::Context *to) asm("ContextSwitch");
 
-namespace conjure::routine {
+} // extern "C"
+
+namespace conjure {
+
+void Return();
 
 namespace detail {
 
@@ -110,6 +110,12 @@ class Conjure {
     void *func_wrapper_this_;
 };
 
+template <typename F, typename... Args>
+void ConjureCallWrapper(FunctionWrapper<F, Args...> *this_) {
+    this_->Call();
+    Return();
+}
+
 template <typename Result>
 class ConjureClient : public Conjure {
     struct ResultStore {
@@ -133,13 +139,17 @@ class ConjureClient : public Conjure {
     };
 
   public:
+    using ResultT = Result;
+
     template <typename F, typename... Args>
     ConjureClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
         : Conjure(std::move(stack)) {
         auto result_store_impl =
             std::make_unique<ResultStoreImpl<F, Args...>>(std::move(wrapper));
         this->func_wrapper_this_ = &result_store_impl->wrapper;
-        this->context_.return_addr = result_store_impl->wrapper.CallAddress();
+        this->context_.return_addr =
+            (void *)static_cast<typename FunctionWrapper<F, Args...>::CallerT>(
+                &ConjureCallWrapper);
         result_ = std::move(result_store_impl);
     }
 
@@ -233,6 +243,6 @@ inline void Resume(Conjure *c) {
     Conjurer::Instance().Resume(c);
 }
 
-} // namespace conjure::routine
+} // namespace conjure
 
 #endif // CONJURE_COROUTINE_H_

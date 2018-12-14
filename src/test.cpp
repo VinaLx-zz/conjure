@@ -1,7 +1,7 @@
 #include "coroutine.h"
 #include <stdio.h>
 
-using namespace conjure::routine;
+using namespace conjure;
 
 void g(int limit) {
     printf("calling g with limit = %d\n", limit);
@@ -9,7 +9,6 @@ void g(int limit) {
         printf("co g: %d\n", i);
         Yield();
     }
-    Return();
 }
 
 void f(int limit) {
@@ -23,7 +22,6 @@ void f(int limit) {
         }
         Yield();
     }
-    Return();
 }
 
 int main() {

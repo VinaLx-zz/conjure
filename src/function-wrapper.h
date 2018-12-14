@@ -10,6 +10,8 @@ namespace conjure {
 
 struct Void {};
 
+namespace detail {
+
 template <typename T>
 struct NormalizeVoid {
     using Type = T;
@@ -23,6 +25,8 @@ struct NormalizeVoid<void> {
 template <typename T>
 using NormalizeVoidT = typename NormalizeVoid<T>::Type;
 
+} // namespace detail
+
 template <typename F, typename... Args>
 struct FunctionWrapper;
 
@@ -32,7 +36,7 @@ void CallWrapper(FunctionWrapper<F, Args...> *this_);
 template <typename F, typename... Args>
 struct FunctionWrapper {
     using CallerT = void (*)(FunctionWrapper *);
-    using ResultT = NormalizeVoidT<std::invoke_result_t<F, Args...>>;
+    using ResultT = detail::NormalizeVoidT<std::invoke_result_t<F, Args...>>;
 
     friend void CallWrapper(FunctionWrapper *this_);
     template <typename... FwdArgs>
@@ -40,8 +44,13 @@ struct FunctionWrapper {
         : f_(std::move(f)),
           args_(std::make_tuple(std::forward<FwdArgs>(args)...)) {}
 
-    static void *CallAddress() {
-        return (void *)static_cast<CallerT>(&CallWrapper);
+    void Call() {
+        if constexpr (std::is_same_v<ResultT, Void>) {
+            std::apply(f_, std::move(args_));
+            result_ = Void();
+        } else {
+            result_ = std::apply(f_, std::move(args_));
+        }
     }
 
     F f_;
@@ -53,20 +62,12 @@ template <typename F, typename... FwdArgs>
 using WrapperT = FunctionWrapper<F, std::decay_t<FwdArgs>...>;
 
 template <typename F, typename... FwdArgs>
+using WrapperResultT = typename WrapperT<F, FwdArgs...>::ResultT;
+
+template <typename F, typename... FwdArgs>
 WrapperT<F, FwdArgs...> WrapCall(F f, FwdArgs &&... args) {
     return WrapperT<F, FwdArgs...>(
         std::move(f), std::forward<FwdArgs>(args)...);
-}
-
-template <typename F, typename... Args>
-void CallWrapper(FunctionWrapper<F, Args...> *this_) {
-    if constexpr (std::is_same_v<
-                      typename FunctionWrapper<F, Args...>::ResultT, Void>) {
-        std::apply(this_->f_, std::move(this_->args_));
-        this_->result_ = Void();
-    } else {
-        this_->result_ = std::apply(this_->f_, std::move(this_->args_));
-    }
 }
 
 } // namespace conjure
