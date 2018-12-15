@@ -26,8 +26,6 @@ void ContextSwitch(
 
 namespace conjure {
 
-void Return();
-
 namespace detail {
 
 struct CalleeSavedRegs {
@@ -68,7 +66,7 @@ const char *Name(Conjury *c);
 
 class Conjury {
   public:
-    enum class State { kInitial, kWaiting, kRunning, kFinished };
+    enum class State { kInitial, kBlocking, kReady, kRunning, kFinished };
 
     using Pointer = std::unique_ptr<Conjury>;
 
@@ -78,11 +76,42 @@ class Conjury {
         printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
+    void End(Conjury &next) {
+        printf("ending current, this: %p, parent: %p\n", this, parent_conjury_);
+        if (Parent()->state_ == State::kBlocking) {
+            Parent()->state_ = State::kReady;
+        }
+        YieldAndSetState(State::kFinished, next);
+    }
+
+    void Yield(Conjury &next) {
+        YieldAndSetState(State::kReady, next);
+    }
+
+    void Wait(Conjury &next) {
+        printf("setting parent of %p to %p\n", &next, this);
+        next.parent_conjury_ = this;
+        YieldAndSetState(State::kBlocking, next);
+    }
+
+    Conjury *Parent() {
+        return parent_conjury_;
+    }
+
+    virtual ~Conjury() = default;
+
+    State GetState() const {
+        return state_;
+    }
+
+  private:
     void ResumeFrom(Conjury &from) {
         if (state_ == State::kFinished) {
             return;
         }
         // assert(state != State::kRunning);
+
+        parent_conjury_ = &from;
 
         if (state_ == State::kInitial) {
             state_ = State::kRunning;
@@ -98,22 +127,21 @@ class Conjury {
         to.ResumeFrom(*this);
     }
 
-    State GetState() const {
-        return state_;
-    }
-
   protected:
     Stack stack_;
     detail::Context context_;
     State state_ = State::kInitial;
 
-    void *func_wrapper_this_;
+    void *func_wrapper_this_ = nullptr;
+    Conjury *parent_conjury_ = nullptr;
 };
+
+void End();
 
 template <typename F, typename... Args>
 void ConjuryCallWrapper(FunctionWrapper<F, Args...> *this_) {
     this_->Call();
-    Return();
+    End();
 }
 
 template <typename Result>
@@ -140,6 +168,7 @@ class ConjuryClient : public Conjury {
 
   public:
     using ResultT = Result;
+    using Pointer = std::unique_ptr<ConjuryClient>;
 
     template <typename F, typename... Args>
     ConjuryClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
@@ -160,88 +189,6 @@ class ConjuryClient : public Conjury {
   private:
     std::unique_ptr<ResultStore> result_;
 };
-
-struct Conjurer {
-    Conjurer() {
-        routines_.push_back(std::make_unique<Conjury>());
-        active_routine_ = routines_.back().get();
-        name_map_[active_routine_] = "Main";
-    }
-
-    static Conjurer &Instance() {
-        static Conjurer conjurer;
-        return conjurer;
-    }
-
-    template <typename F, typename... Args>
-    auto NewRoutine(const Config &config, F f, Args &&... args) {
-        using R = typename WrapperT<F, Args...>::ResultT;
-        Stack stack(config.stack_size);
-
-        auto co = std::make_unique<ConjuryClient<R>>(
-            std::move(stack),
-            WrapCall(std::move(f), std::forward<Args>(args)...));
-
-        ConjuryClient<R> *co_client = co.get();
-        routines_.push_back(std::move(co));
-
-        parent_map_[co_client] = active_routine_;
-        name_map_[co_client] = config.routine_name;
-        return co_client;
-    }
-
-    void Yield() {
-        Resume(parent_map_[active_routine_]);
-    }
-
-    void Resume(Conjury *co) {
-        ResumeImpl(Conjury::State::kWaiting, co);
-    }
-
-    void ResumeImpl(Conjury::State s, Conjury *co) {
-        Conjury *from = active_routine_, *to = co;
-        active_routine_ = to;
-        printf("%s yield to %s\n", NameOf(from), NameOf(to));
-        from->YieldAndSetState(s, *to);
-    }
-
-    void Exit() {
-        printf("%s exitted\n", Name(active_routine_));
-        ResumeImpl(Conjury::State::kFinished, parent_map_[active_routine_]);
-    }
-
-    const char *NameOf(Conjury *c) {
-        return name_map_[c].data();
-    }
-    std::unordered_map<Conjury *, std::string> name_map_;
-
-  private:
-    Conjury *active_routine_ = nullptr;
-    std::unordered_map<Conjury *, Conjury *> parent_map_;
-    std::vector<Conjury::Pointer> routines_;
-};
-
-const char *Name(Conjury *c) {
-    return Conjurer::Instance().NameOf(c);
-}
-
-inline void Yield() {
-    Conjurer::Instance().Yield();
-}
-
-template <typename F, typename... Args>
-Conjury *NewRoutine(const Config &config, F f, Args &&... args) {
-    return Conjurer::Instance().NewRoutine(
-        config, std::move(f), std::forward<Args>(args)...);
-}
-
-inline void Return() {
-    Conjurer::Instance().Exit();
-}
-
-inline void Resume(Conjury *c) {
-    Conjurer::Instance().Resume(c);
-}
 
 } // namespace conjure
 

@@ -1,4 +1,4 @@
-#include "coroutine.h"
+#include "conjurer.h"
 #include <stdio.h>
 
 using namespace conjure;
@@ -13,7 +13,7 @@ void g(int limit) {
 
 void f(int limit) {
     printf("calling f with limit = %d\n", limit);
-    auto co = NewRoutine(Config("Gee"), g, 5);
+    auto co = Conjure(Config("Gee"), g, 5);
     puts("Gee created");
     for (int i = 0; i < limit; ++i) {
         printf("co f: %d\n", i);
@@ -28,7 +28,7 @@ int main() {
     printf("main pointer: %p\n", &main);
     printf("f pointer: %p\n", &f);
     printf("g pointer: %p\n", &g);
-    auto co = NewRoutine(Config("Foo"), f, 10);
+    auto co = Conjure(Config("Foo"), f, 10);
     Resume(co);
     puts("preparing...");
     Resume(co);
