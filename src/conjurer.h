@@ -1,7 +1,7 @@
 #ifndef CONJURE_CONJURER_H_
 #define CONJURE_CONJURER_H_
 
-#include "./coroutine.h"
+#include "./conjury.h"
 #include <memory>
 #include <stdexcept>
 #include <vector>

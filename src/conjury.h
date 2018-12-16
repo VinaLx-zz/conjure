@@ -1,5 +1,5 @@
-#ifndef CONJURE_COROUTINE_H_
-#define CONJURE_COROUTINE_H_
+#ifndef CONJURE_CONJURY_H_
+#define CONJURE_CONJURY_H_
 
 #include <memory>
 #include <optional>
@@ -231,4 +231,4 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
 
 } // namespace conjure
 
-#endif // CONJURE_COROUTINE_H_
+#endif // CONJURE_CONJURY_H_
