@@ -2,6 +2,7 @@
 #define CONJURE_COROUTINE_H_
 
 #include <memory>
+#include <optional>
 #include <stdint.h>
 #include <string>
 #include <unordered_map>
@@ -76,8 +77,12 @@ class Conjury {
         printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
-    void End(Conjury &next) {
-        printf("ending current, this: %p, parent: %p\n", this, parent_conjury_);
+    bool IsFinished() const {
+        return state_ == State::kFinished;
+    }
+
+    void FinishYield(Conjury &next) {
+        // printf("ending current, this: %p, parent: %p\n", this, parent_conjury_);
         if (Parent()->state_ == State::kBlocking) {
             Parent()->state_ = State::kReady;
         }
@@ -88,10 +93,14 @@ class Conjury {
         YieldAndSetState(State::kReady, next);
     }
 
-    void Wait(Conjury &next) {
-        printf("setting parent of %p to %p\n", &next, this);
-        next.parent_conjury_ = this;
+    void BlockingYield(Conjury &next) {
         YieldAndSetState(State::kBlocking, next);
+    }
+
+    void Wait(Conjury &next) {
+        // printf("setting parent of %p to %p\n", &next, this);
+        next.parent_conjury_ = this;
+        BlockingYield(next);
     }
 
     Conjury *Parent() {
@@ -144,8 +153,11 @@ void ConjuryCallWrapper(FunctionWrapper<F, Args...> *this_) {
     End();
 }
 
+template <typename Gen>
+struct ConjureGen {};
+
 template <typename Result>
-class ConjuryClient : public Conjury {
+class ConjuryClientImpl : public Conjury {
     struct ResultStore {
         virtual std::optional<Result> Get() = 0;
         virtual ~ResultStore() = default;
@@ -168,10 +180,9 @@ class ConjuryClient : public Conjury {
 
   public:
     using ResultT = Result;
-    using Pointer = std::unique_ptr<ConjuryClient>;
 
     template <typename F, typename... Args>
-    ConjuryClient(Stack stack, FunctionWrapper<F, Args...> wrapper)
+    ConjuryClientImpl(Stack stack, FunctionWrapper<F, Args...> wrapper)
         : Conjury(std::move(stack)) {
         auto result_store_impl =
             std::make_unique<ResultStoreImpl<F, Args...>>(std::move(wrapper));
@@ -188,6 +199,34 @@ class ConjuryClient : public Conjury {
 
   private:
     std::unique_ptr<ResultStore> result_;
+};
+
+template <typename Result>
+class ConjuryClient : public ConjuryClientImpl<Result> {
+  public:
+    using Pointer = std::unique_ptr<ConjuryClient>;
+    using ConjuryClientImpl<Result>::ConjuryClientImpl;
+};
+
+template <typename G>
+class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
+  public:
+    using Pointer = std::unique_ptr<ConjuryClient>;
+    using ConjuryClientImpl<ConjureGen<G>>::ConjuryClientImpl;
+
+    G UnsafeGetGen() {
+        G val = std::move(gen_store_.value());
+        gen_store_.reset();
+        return val;
+    }
+
+    template <typename U>
+    void StoreGen(U &&u) {
+        gen_store_.emplace(std::forward<U>(u));
+    }
+
+  private:
+    std::optional<G> gen_store_;
 };
 
 } // namespace conjure

@@ -3,6 +3,7 @@
 
 #include "./coroutine.h"
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace conjure {
@@ -47,11 +48,33 @@ class Conjurer {
 
     void End() {
         Conjury *current = SetNextActive(scheduler_.get());
-        current->End(*scheduler_);
+        current->FinishYield(*scheduler_);
     }
 
     void Yield() {
         YieldImpl(scheduler_.get());
+    }
+
+    template <typename U, typename G = std::decay_t<U>>
+    void Yield(U &&u) {
+        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
+        if (gen_co == nullptr) {
+            throw std::runtime_error("invalid yielding context");
+        }
+        gen_co->StoreGen(std::forward<U>(u));
+        SetNextActive(gen_co->Parent());
+        gen_co->BlockingYield(*gen_co->Parent());
+    }
+
+    template <typename G>
+    bool GenMoveNext(ConjuryClient<ConjureGen<G>> *gen_co) {
+        Conjury *current = SetNextActive(gen_co);
+        current->Wait(*gen_co);
+        if (gen_co->IsFinished()) {
+            Destroy(gen_co);
+            return false;
+        }
+        return true;
     }
 
     bool Destroy(Conjury *co) {
@@ -69,6 +92,7 @@ class Conjurer {
     static std::unique_ptr<Conjurer> instance_;
 
     static void Scheduler() {
+        // TODO: add a non-trivial scheduler
         Conjurer &conjurer = *Instance();
         for (;;) {
             // printf("scheduler start\n");
@@ -88,6 +112,12 @@ class Conjurer {
     void YieldImpl(Conjury *next) {
         Conjury *current = SetNextActive(next);
         current->Yield(*next);
+    }
+
+    template <typename R>
+    ConjuryClient<R> *GetActiveConjuryAs() {
+        auto co_client = dynamic_cast<ConjuryClient<R> *>(active_conjury_);
+        return co_client;
     }
 
     template <typename F, typename... Args>
@@ -133,6 +163,16 @@ ConjuryClientT<F, Args...> *
 Conjure(const Config &config, F f, Args &&... args) {
     return Conjurer::Instance()->Conjure(
         config, std::move(f), std::forward<Args>(args)...);
+}
+
+template <typename G>
+bool GenMoveNext(ConjuryClient<ConjureGen<G>> *co) {
+    return Conjurer::Instance()->GenMoveNext(co);
+}
+
+template <typename U>
+void Yield(U &&u) {
+    return Conjurer::Instance()->Yield(std::forward<U>(u));
 }
 
 } // namespace conjure
