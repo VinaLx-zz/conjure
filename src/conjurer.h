@@ -17,8 +17,8 @@ class Conjurer {
         auto main_co = std::make_unique<Conjury>();
         active_conjury_ = main_co.get();
         conjuries_.push_back(std::move(main_co));
-        printf(
-            "main_co: %p, scheduler: %p\n", active_conjury_, scheduler_.get());
+        // printf(
+            // "main_co: %p, scheduler: %p\n", active_conjury_, scheduler_.get());
     }
 
     static Conjurer *Instance() {

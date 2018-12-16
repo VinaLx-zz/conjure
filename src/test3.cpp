@@ -17,9 +17,9 @@ ConjureGen<int> Fibonacci(int n) {
 }
 
 int main() {
-    auto *co = Conjure(Config{}, Fibonacci, 10);
-    for (auto i : co) {
+    auto co = Conjure(Config{}, Fibonacci, 10);
+    for (int i : co) {
         // 0 1 1 2 3 5 8 13 21 34
-        printf("%d ", i);
+        printf("main: %d\n", i);
     }
 }

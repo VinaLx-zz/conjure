@@ -74,7 +74,7 @@ class Conjury {
     Conjury() : context_(nullptr, nullptr) {}
 
     Conjury(Stack stk) : stack_(std::move(stk)), context_(stack_.stack_start) {
-        printf("coroutine stack: %p\n", context_.stack_ptr);
+        // printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
     bool IsFinished() const {
@@ -82,7 +82,8 @@ class Conjury {
     }
 
     void FinishYield(Conjury &next) {
-        // printf("ending current, this: %p, parent: %p\n", this, parent_conjury_);
+        // printf("ending current, this: %p, parent: %p\n", this,
+        // parent_conjury_);
         if (Parent()->state_ == State::kBlocking) {
             Parent()->state_ = State::kReady;
         }

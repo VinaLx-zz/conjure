@@ -8,8 +8,10 @@ int MultTwo(int a) {
 }
 
 int main() {
-    ConjuryClient<int> *co = Conjure(Config(), MultTwo, 2);
+    auto co = Conjure(Config(), MultTwo, 2);
+
+    // Control transfer to MultTwo
     int result = Wait(co);
 
-    printf("result: %d\n", result);
+    printf("result: %d\n", result); // 4
 }
