@@ -14,7 +14,7 @@ using ConjuryClientT = ConjuryClient<WrapperResultT<F, Args...>>;
 
 class Conjurer {
   public:
-    Conjurer() : scheduler_(ConjureImpl(Config(), &Scheduler)) {
+    Conjurer() : scheduler_(UnmanagedConjure(Config(), &Scheduler)) {
         auto main_co = std::make_unique<Conjury>();
         active_conjury_ = main_co.get();
         conjuries_.push_back(std::move(main_co));
@@ -31,7 +31,7 @@ class Conjurer {
     ConjuryClientT<F, Args...> *
     Conjure(const Config &config, F f, Args &&... args) {
         auto co =
-            ConjureImpl(config, std::move(f), std::forward<Args>(args)...);
+            UnmanagedConjure(config, std::move(f), std::forward<Args>(args)...);
         auto co_client = co.get();
         conjuries_.push_back(std::move(co));
 
@@ -59,6 +59,10 @@ class Conjurer {
 
     void Yield() {
         YieldTo(scheduler_.get());
+    }
+
+    void Resume(Conjury* next) {
+        YieldTo(next);
     }
 
     template <typename U, typename G = std::decay_t<U>>
@@ -128,7 +132,7 @@ class Conjurer {
 
     template <typename F, typename... Args>
     static typename ConjuryClientT<F, Args...>::Pointer
-    ConjureImpl(const Config &config, F f, Args &&... args) {
+    UnmanagedConjure(const Config &config, F f, Args &&... args) {
         using C = ConjuryClientT<F, Args...>;
 
         Stack stack(config.stack_size);
@@ -168,6 +172,14 @@ inline void End() {
 
 inline void Suspend() {
     Conjurer::Instance()->Suspend();
+}
+
+inline bool Resume(Conjury* next) {
+    if (next->GetState() != Conjury::State::kRunning) {
+        return false;
+    }
+    Conjurer::Instance()->Resume(next);
+    return true;
 }
 
 template <typename T>

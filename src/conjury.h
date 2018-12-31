@@ -100,6 +100,13 @@ class Conjury {
         YieldAndSetState(State::kBlocking, next);
     }
 
+    bool Wake() {
+        if (state_ == State::kBlocking) {
+            state_ = State::kReady;
+        }
+        return false;
+    }
+
     void Wait(Conjury &next) {
         // printf("setting parent of %p to %p\n", &next, this);
         next.parent_conjury_ = this;
