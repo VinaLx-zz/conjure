@@ -3,6 +3,7 @@
 
 #include "./conjury.h"
 #include <memory>
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
