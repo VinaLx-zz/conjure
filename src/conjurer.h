@@ -52,8 +52,13 @@ class Conjurer {
         current->FinishYield(*scheduler_);
     }
 
+    void Suspend() {
+        Conjury *current = SetNextActive(scheduler_.get());
+        current->Suspend(*scheduler_);
+    }
+
     void Yield() {
-        YieldImpl(scheduler_.get());
+        YieldTo(scheduler_.get());
     }
 
     template <typename U, typename G = std::decay_t<U>>
@@ -64,7 +69,7 @@ class Conjurer {
         }
         gen_co->StoreGen(std::forward<U>(u));
         SetNextActive(gen_co->Parent());
-        gen_co->BlockingYield(*gen_co->Parent());
+        gen_co->Suspend(*gen_co->Parent());
     }
 
     template <typename G>
@@ -105,12 +110,12 @@ class Conjurer {
                 }
             }
             if (next != nullptr) {
-                conjurer.YieldImpl(next);
+                conjurer.YieldTo(next);
             }
         }
     }
 
-    void YieldImpl(Conjury *next) {
+    void YieldTo(Conjury *next) {
         Conjury *current = SetNextActive(next);
         current->Yield(*next);
     }
@@ -146,24 +151,28 @@ class Conjurer {
     std::vector<Conjury::Pointer> conjuries_;
 };
 
-inline void Yield() {
-    Conjurer::Instance()->Yield();
-}
-
-template <typename T>
-T Wait(ConjuryClient<T> *co) {
-    return Conjurer::Instance()->Wait(co);
-}
-
-void End() {
-    Conjurer::Instance()->End();
-}
-
 template <typename F, typename... Args>
 ConjuryClientT<F, Args...> *
 Conjure(const Config &config, F f, Args &&... args) {
     return Conjurer::Instance()->Conjure(
         config, std::move(f), std::forward<Args>(args)...);
+}
+
+inline void Yield() {
+    Conjurer::Instance()->Yield();
+}
+
+inline void End() {
+    Conjurer::Instance()->End();
+}
+
+inline void Suspend() {
+    Conjurer::Instance()->Suspend();
+}
+
+template <typename T>
+T Wait(ConjuryClient<T> *co) {
+    return Conjurer::Instance()->Wait(co);
 }
 
 template <typename G>
@@ -175,6 +184,7 @@ template <typename U>
 void Yield(U &&u) {
     return Conjurer::Instance()->Yield(std::forward<U>(u));
 }
+
 
 } // namespace conjure
 

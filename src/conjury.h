@@ -77,6 +77,8 @@ class Conjury {
         // printf("coroutine stack: %p\n", context_.stack_ptr);
     }
 
+    virtual ~Conjury() = default;
+
     bool IsFinished() const {
         return state_ == State::kFinished;
     }
@@ -94,21 +96,19 @@ class Conjury {
         YieldAndSetState(State::kReady, next);
     }
 
-    void BlockingYield(Conjury &next) {
+    void Suspend(Conjury &next) {
         YieldAndSetState(State::kBlocking, next);
     }
 
     void Wait(Conjury &next) {
         // printf("setting parent of %p to %p\n", &next, this);
         next.parent_conjury_ = this;
-        BlockingYield(next);
+        Suspend(next);
     }
 
     Conjury *Parent() {
         return parent_conjury_;
     }
-
-    virtual ~Conjury() = default;
 
     State GetState() const {
         return state_;
