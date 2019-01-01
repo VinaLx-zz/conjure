@@ -80,7 +80,7 @@ class Conjurer {
         }
         gen_co->StoreGen(std::forward<U>(u));
         SetNextActive(gen_co->Parent());
-        gen_co->Suspend(*gen_co->Parent());
+        gen_co->Wait(*gen_co->Parent());
     }
 
     template <typename G>

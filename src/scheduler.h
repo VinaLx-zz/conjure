@@ -49,16 +49,14 @@ class Scheduler {
         for (int i = 0; i < blocking_queue_.size(); ++i) {
             Conjury* c = blocking_queue_[i];
             switch (c->GetState()) {
-                case Conjury::State::kBlocking:
-                    blocking_queue_[new_blocking_end++] = c;
-                    break;
-                case Conjury::State::kReady:
-                    RegisterReady(c);
-                    break;
-                case Conjury::State::kFinished:
-                    break;
-                default:
-                    throw std::logic_error("invalid conjury state");
+            case Conjury::State::kSuspended:
+                blocking_queue_[new_blocking_end++] = c;
+                break;
+            case Conjury::State::kReady:
+                RegisterReady(c);
+                break;
+            default:
+                break;
             }
         }
         blocking_queue_.erase(

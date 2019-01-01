@@ -67,7 +67,14 @@ const char *Name(Conjury *c);
 
 class Conjury {
   public:
-    enum class State { kInitial, kBlocking, kReady, kRunning, kFinished };
+    enum class State {
+        kInitial,
+        kWaiting,
+        kSuspended,
+        kReady,
+        kRunning,
+        kFinished
+    };
 
     using Pointer = std::unique_ptr<Conjury>;
 
@@ -86,7 +93,7 @@ class Conjury {
     void FinishYield(Conjury &next) {
         // printf("ending current, this: %p, parent: %p\n", this,
         // parent_conjury_);
-        if (Parent()->state_ == State::kBlocking) {
+        if (Parent()->state_ == State::kWaiting) {
             Parent()->state_ = State::kReady;
         }
         YieldAndSetState(State::kFinished, next);
@@ -97,11 +104,11 @@ class Conjury {
     }
 
     void Suspend(Conjury &next) {
-        YieldAndSetState(State::kBlocking, next);
+        YieldAndSetState(State::kSuspended, next);
     }
 
     bool Wake() {
-        if (state_ == State::kBlocking) {
+        if (state_ == State::kSuspended) {
             state_ = State::kReady;
         }
         return false;
@@ -110,7 +117,7 @@ class Conjury {
     void Wait(Conjury &next) {
         // printf("setting parent of %p to %p\n", &next, this);
         next.parent_conjury_ = this;
-        Suspend(next);
+        YieldAndSetState(State::kWaiting, next);
     }
 
     Conjury *Parent() {
@@ -119,6 +126,10 @@ class Conjury {
 
     State GetState() const {
         return state_;
+    }
+
+    void UnsafeSetState(State state) {
+        state_ = state;
     }
 
   private:
@@ -225,6 +236,9 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     G UnsafeGetGen() {
         G val = std::move(gen_store_.value());
         gen_store_.reset();
+        if (this->Parent()) {
+            this->Parent()->UnsafeSetState(Conjury::State::kReady);
+        }
         return val;
     }
 
