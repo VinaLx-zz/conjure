@@ -69,7 +69,7 @@ class Conjurer {
         current->Done(*next);
     }
 
-    template <typename P>
+    template <typename P = Void>
     void Suspend(P p = P{}) {
         Conjury *current = SetNextActive(sche_co_.get());
         if constexpr (std::is_same_v<P, Void>) {
@@ -84,8 +84,12 @@ class Conjurer {
         YieldTo(sche_co_.get());
     }
 
-    void Resume(Conjury *next) {
+    bool Resume(Conjury *next) {
+        if (not state::IsExecutable(next->GetState())) {
+            return false;
+        }
         YieldTo(next);
+        return true;
     }
 
     template <typename U, typename G = std::decay_t<U>>
@@ -197,9 +201,13 @@ inline void End() {
     Conjurer::Instance()->End();
 }
 
-template <bool kTestFirst = true, typename P = Void>
-void Suspend(P p = P{}) {
-    if constexpr (not std::is_same_v<P, Void> and kTestFirst) {
+inline void Suspend() {
+    Conjurer::Instance()->Suspend();
+}
+
+template <bool kTestFirst = true, typename P>
+void SuspendUntil(P p) {
+    if constexpr (kTestFirst) {
         if (p()) {
             return;
         }
@@ -208,11 +216,7 @@ void Suspend(P p = P{}) {
 }
 
 inline bool Resume(Conjury *next) {
-    if (not state::IsExecutable(next->GetState())) {
-        return false;
-    }
-    Conjurer::Instance()->Resume(next);
-    return true;
+    return Conjurer::Instance()->Resume(next);
 }
 
 template <typename T>
