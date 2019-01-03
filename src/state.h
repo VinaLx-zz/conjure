@@ -12,6 +12,14 @@ enum class State {
     kFinished
 };
 
+namespace state {
+
+constexpr bool IsExecutable(State s) {
+    return s == State::kReady or s == State::kInitial;
 }
+
+} // namespace state
+
+} // namespace conjure
 
 #endif // CONJURE_STATE_H_
