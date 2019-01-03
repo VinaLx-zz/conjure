@@ -1,6 +1,10 @@
 #ifndef CONJURE_CONJURY_H_
 #define CONJURE_CONJURY_H_
 
+#include "conjure/function-wrapper.h"
+#include "conjure/stack.h"
+#include "conjure/state.h"
+
 #include <assert.h>
 #include <memory>
 #include <optional>
@@ -8,10 +12,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "conjure/function-wrapper.h"
-#include "conjure/stack.h"
-#include "conjure/state.h"
 
 namespace conjure::detail {
 
@@ -51,18 +51,6 @@ struct Context {
 };
 
 } // namespace detail
-
-struct Config {
-    static constexpr int kDefaultStackSize = 16 * 1024;
-
-    Config() = default;
-
-    Config(const std::string &name) : name(name) {}
-
-    int stack_size = kDefaultStackSize;
-
-    std::string name;
-};
 
 class Conjury {
   public:
@@ -149,7 +137,6 @@ class Conjury {
     }
 
   private:
-
     void UnsafeResumeFrom(Conjury &from) {
         if (state_ == State::kInitial) {
             state_ = State::kRunning;
@@ -176,7 +163,7 @@ class Conjury {
     std::string name_;
 };
 
-void End();
+inline void End();
 
 template <typename F, typename... Args>
 void ConjuryCallWrapper(FunctionWrapper<F, Args...> *this_) {
