@@ -10,6 +10,7 @@
 
 #include "./function-wrapper.h"
 #include "./stack.h"
+#include "./state.h"
 
 namespace conjure::detail {
 
@@ -64,15 +65,6 @@ struct Config {
 
 class Conjury {
   public:
-    enum class State {
-        kInitial,
-        kWaiting,
-        kSuspended,
-        kReady,
-        kRunning,
-        kFinished
-    };
-
     using Pointer = std::unique_ptr<Conjury>;
 
     Conjury() : context_(nullptr, nullptr) {}
@@ -244,7 +236,7 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
         G val = std::move(gen_store_.value());
         gen_store_.reset();
         if (this->Parent()) {
-            this->Parent()->UnsafeSetState(Conjury::State::kReady);
+            this->Parent()->UnsafeSetState(State::kReady);
         }
         return val;
     }

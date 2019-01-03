@@ -45,9 +45,9 @@ class Scheduler {
         SuspendedConjury(Conjury *c, P p) : c(c), ready_pred(std::move(p)) {}
 
         bool IsReady() const {
-            return c->GetState() == Conjury::State::kReady or
-                   (c->GetState() == Conjury::State::kSuspended and
-                    ready_pred and ready_pred());
+            return c->GetState() == State::kReady or
+                   (c->GetState() == State::kSuspended and ready_pred and
+                    ready_pred());
         }
 
         const std::string &Name() {
@@ -62,7 +62,7 @@ class Scheduler {
         for (; not ready_queue_.empty();) {
             Conjury *c = ready_queue_.front();
             ready_queue_.pop_front();
-            if (c->GetState() == Conjury::State::kReady) {
+            if (c->GetState() == State::kReady) {
                 return c;
             }
         }
@@ -74,9 +74,9 @@ class Scheduler {
         for (int i = 0; i < suspended_queue_.size(); ++i) {
             auto &c = suspended_queue_[i];
             if (c.IsReady()) {
-                c.c->UnsafeSetState(Conjury::State::kReady);
+                c.c->UnsafeSetState(State::kReady);
                 RegisterReady(c.c);
-            } else if (c.c->GetState() == Conjury::State::kSuspended) {
+            } else if (c.c->GetState() == State::kSuspended) {
                 suspended_queue_[new_blocking_end++] = std::move(c);
             }
         }

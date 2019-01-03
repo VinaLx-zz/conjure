@@ -200,8 +200,8 @@ void Suspend(P p = P{}) {
 }
 
 inline bool Resume(Conjury *next) {
-    if (next->GetState() != Conjury::State::kReady and
-        next->GetState() != Conjury::State::kInitial) {
+    if (next->GetState() != State::kReady and
+        next->GetState() != State::kInitial) {
         return false;
     }
     Conjurer::Instance()->Resume(next);
