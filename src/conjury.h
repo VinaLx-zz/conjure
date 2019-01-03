@@ -55,15 +55,12 @@ struct Config {
 
     Config() = default;
 
-    Config(const std::string &name) : routine_name(name) {}
+    Config(const std::string &name) : name(name) {}
 
     int stack_size = kDefaultStackSize;
-    std::string routine_name;
+
+    std::string name;
 };
-
-class Conjury;
-
-const char *Name(Conjury *c);
 
 class Conjury {
   public:
@@ -132,6 +129,14 @@ class Conjury {
         state_ = state;
     }
 
+    const std::string& Name() const {
+        return name_;
+    }
+
+    void Name(const std::string& name) {
+        name_ = name;
+    }
+
   private:
     void ResumeFrom(Conjury &from) {
         if (state_ == State::kFinished) {
@@ -162,6 +167,8 @@ class Conjury {
 
     void *func_wrapper_this_ = nullptr;
     Conjury *parent_conjury_ = nullptr;
+
+    std::string name_;
 };
 
 void End();

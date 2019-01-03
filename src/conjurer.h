@@ -17,8 +17,10 @@ using ConjuryClientT = ConjuryClient<WrapperResultT<F, Args...>>;
 class Conjurer {
   public:
     Conjurer() : scheduler_(std::make_unique<Scheduler>()),
-                 sche_co_(UnmanagedConjure(Config(), &RunScheduler, this)) {
+                 sche_co_(UnmanagedConjure(
+                    Config("__scheduler__"), &RunScheduler, this)) {
         auto main_co = std::make_unique<Conjury>();
+        main_co->Name("__main__");
         active_conjury_ = main_co.get();
         conjuries_.push_back(std::move(main_co));
         // printf(
@@ -35,6 +37,7 @@ class Conjurer {
     Conjure(const Config &config, F f, Args &&... args) {
         auto co =
             UnmanagedConjure(config, std::move(f), std::forward<Args>(args)...);
+        co->Name(config.name);
         auto co_client = co.get();
         conjuries_.push_back(std::move(co));
 
@@ -59,13 +62,12 @@ class Conjurer {
         current->FinishYield(*next);
     }
 
-    template <typename P = Void>
+    template <typename P>
     void Suspend(P p = P{}) {
         Conjury *current = SetNextActive(sche_co_.get());
         if constexpr (std::is_same_v<P, Void>) {
             scheduler_->RegisterSuspended(current);
         } else {
-            static_assert(std::is_convertible_v<std::invoke_result_t<P>, bool>);
             scheduler_->RegisterSuspended(current, std::move(p));
         }
         current->Suspend(*sche_co_);
@@ -120,7 +122,6 @@ class Conjurer {
     static std::unique_ptr<Conjurer> instance_;
 
     static void RunScheduler(Conjurer* conjurer) {
-        // printf("scheduler start\n");
         for (;;) {
             Conjury *next = conjurer->scheduler_->GetNext();
             if (next != nullptr) {
@@ -187,13 +188,18 @@ inline void End() {
     Conjurer::Instance()->End();
 }
 
-template <typename P = Void>
+template <bool kTestFirst = true, typename P = Void>
 void Suspend(P p = P{}) {
+    if constexpr (not std::is_same_v<P, Void> and kTestFirst) {
+        if (p()) {
+            return;
+        }
+    }
     Conjurer::Instance()->Suspend(std::move(p));
 }
 
 inline bool Resume(Conjury* next) {
-    if (next->GetState() != Conjury::State::kRunning) {
+    if (next->GetState() != Conjury::State::kReady and next->GetState() != Conjury::State::kInitial) {
         return false;
     }
     Conjurer::Instance()->Resume(next);

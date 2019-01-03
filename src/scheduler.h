@@ -28,7 +28,6 @@ class Scheduler {
     }
 
     Conjury* GetNext() {
-        // printf("calling getNext\n");
         for (;;) {
             if (Conjury* c = TryGetReadyQueueNext()) {
                 return c;
@@ -45,10 +44,14 @@ class Scheduler {
         template <typename P>
         SuspendedConjury(Conjury* c, P p): c(c), ready_pred(std::move(p)) {}
 
-        bool IsReady() {
+        bool IsReady() const {
             return c->GetState() == Conjury::State::kReady or
                 (c->GetState() == Conjury::State::kSuspended and
                  ready_pred and ready_pred());
+        }
+
+        const std::string& Name() {
+            return c->Name();
         }
 
         Conjury* c;
@@ -71,6 +74,7 @@ class Scheduler {
         for (int i = 0; i < suspended_queue_.size(); ++i) {
             auto& c = suspended_queue_[i];
             if (c.IsReady()) {
+                c.c->UnsafeSetState(Conjury::State::kReady);
                 RegisterReady(c.c);
             } else if (c.c->GetState() == Conjury::State::kSuspended) {
                 suspended_queue_[new_blocking_end++] = std::move(c);
