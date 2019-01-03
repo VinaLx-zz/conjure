@@ -1,8 +1,8 @@
 #ifndef CONJURE_CONJURER_H_
 #define CONJURE_CONJURER_H_
 
-#include "./conjury.h"
-#include "./scheduler.h"
+#include "conjure/conjury.h"
+#include "conjure/scheduler.h"
 #include <algorithm>
 #include <memory>
 #include <stdexcept>

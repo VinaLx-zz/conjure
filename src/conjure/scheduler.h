@@ -1,7 +1,7 @@
 #ifndef CONJURE_SCHEDULER_H_
 #define CONJURE_SCHEDULER_H_
 
-#include "./conjury.h"
+#include "conjure/conjury.h"
 #include <assert.h>
 #include <deque>
 #include <functional>

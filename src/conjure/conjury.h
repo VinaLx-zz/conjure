@@ -9,9 +9,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "./function-wrapper.h"
-#include "./stack.h"
-#include "./state.h"
+#include "conjure/function-wrapper.h"
+#include "conjure/stack.h"
+#include "conjure/state.h"
 
 namespace conjure::detail {
 

@@ -1,4 +1,4 @@
-#include "conjurer.h"
+#include "conjure/conjurer.h"
 #include <queue>
 #include <stdio.h>
 
@@ -10,7 +10,7 @@ bool finished = false;
 void Consumer() {
     for (;;) {
         printf("consumer suspend?\n");
-        Suspend([]() { return not q.empty() or finished; });
+        SuspendUntil([]() { return not q.empty() or finished; });
         if (finished) {
             printf("consumer exit\n");
             break;
@@ -24,7 +24,7 @@ void Consumer() {
 void Producer() {
     for (int i = 0; i < 10; ++i) {
         printf("producer suspend?\n");
-        Suspend([]() { return q.empty(); });
+        SuspendUntil([]() { return q.empty(); });
         printf("producer pushing %d\n", i);
         q.push(i);
     }
@@ -33,7 +33,6 @@ void Producer() {
 }
 
 int main() {
-    q = std::queue<int>{};
     auto producer = Conjure(Config("producer"), Producer);
     auto consumer = Conjure(Config("consumer"), Consumer);
     Resume(producer);

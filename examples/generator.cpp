@@ -1,5 +1,5 @@
-#include "conjurer.h"
-#include "gen-iterator.h"
+#include "conjure/conjurer.h"
+#include "conjure/gen-iterator.h"
 #include <stdio.h>
 
 using namespace conjure;

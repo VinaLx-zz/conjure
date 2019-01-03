@@ -1,4 +1,4 @@
-#include "./conjurer.h"
+#include "conjure/conjurer.h"
 
 using namespace conjure;
 

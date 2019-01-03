@@ -1,7 +1,7 @@
 #ifndef CONJURE_GEN_ITERATOR_H_
 #define CONJURE_GEN_ITERATOR_H_
 
-#include "conjurer.h"
+#include "conjure/conjurer.h"
 #include <iterator>
 #include <optional>
 
