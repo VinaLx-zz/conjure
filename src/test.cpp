@@ -1,9 +1,6 @@
 #include "conjurer.h"
 #include <stdio.h>
 
-/// THIS TEST DOESN'T COMPILE FOR CURRENT VERSION
-/// TODO: Figure out the semantic of `Yield()` and make this test work
-
 using namespace conjure;
 
 void g(int limit) {
