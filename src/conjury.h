@@ -1,6 +1,7 @@
 #ifndef CONJURE_CONJURY_H_
 #define CONJURE_CONJURY_H_
 
+#include <assert.h>
 #include <memory>
 #include <optional>
 #include <stdint.h>
@@ -79,34 +80,39 @@ class Conjury {
         return state_ == State::kFinished;
     }
 
-    void FinishYield(Conjury &next) {
+    void Done(Conjury &next) {
         // printf("ending current, this: %p, parent: %p\n", this,
         // parent_conjury_);
-        if (Parent()->state_ == State::kWaiting) {
+        if (Parent()) {
+            assert(Parent()->state_ == State::kWaiting);
             Parent()->state_ = State::kReady;
         }
         YieldAndSetState(State::kFinished, next);
     }
 
     void Yield(Conjury &next) {
-        YieldAndSetState(State::kReady, next);
+        [[maybe_unused]] bool success = YieldAndSetState(State::kReady, next);
+        assert(success);
     }
 
     void Suspend(Conjury &next) {
-        YieldAndSetState(State::kSuspended, next);
+        [[maybe_unused]] bool success =
+            YieldAndSetState(State::kSuspended, next);
+        assert(success);
     }
 
     bool Wake() {
         if (state_ == State::kSuspended) {
             state_ = State::kReady;
+            return true;
         }
         return false;
     }
 
-    void Wait(Conjury &next) {
-        // printf("setting parent of %p to %p\n", &next, this);
+    bool Wait(Conjury &next) {
+        // printf("setting parent of %s to %s\n", next.Name(), Name());
         next.parent_conjury_ = this;
-        YieldAndSetState(State::kWaiting, next);
+        return YieldAndSetState(State::kWaiting, next);
     }
 
     Conjury *Parent() {
@@ -121,23 +127,30 @@ class Conjury {
         state_ = state;
     }
 
-    const std::string &Name() const {
-        return name_;
+    const char *Name() const {
+        return name_.data();
     }
 
     void Name(const std::string &name) {
         name_ = name;
     }
 
-  private:
-    void ResumeFrom(Conjury &from) {
+    bool ResumeFrom(Conjury &from) {
         if (state_ == State::kFinished) {
-            return;
+            return true;
+        }
+        if (not state::IsExecutable(state_)) {
+            // puts(state::ToString(state_));
+            return false;
         }
         // assert(state != State::kRunning);
+        UnsafeResumeFrom(from);
+        return true;
+    }
 
-        parent_conjury_ = &from;
+  private:
 
+    void UnsafeResumeFrom(Conjury &from) {
         if (state_ == State::kInitial) {
             state_ = State::kRunning;
             ContextSwitch(func_wrapper_this_, &from.context_, &context_);
@@ -147,9 +160,9 @@ class Conjury {
         }
     }
 
-    void YieldAndSetState(State s, Conjury &to) {
+    bool YieldAndSetState(State s, Conjury &to) {
         state_ = s;
-        to.ResumeFrom(*this);
+        return to.ResumeFrom(*this);
     }
 
   protected:
@@ -235,15 +248,14 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     G UnsafeGetGen() {
         G val = std::move(gen_store_.value());
         gen_store_.reset();
-        if (this->Parent()) {
-            this->Parent()->UnsafeSetState(State::kReady);
-        }
-        return val;
+        this->UnsafeSetState(State::kReady);
+        return val; // NRVO
     }
 
     template <typename U>
     void StoreGen(U &&u) {
         gen_store_.emplace(std::forward<U>(u));
+        this->Parent()->UnsafeSetState(State::kReady);
     }
 
   private:

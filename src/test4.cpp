@@ -11,7 +11,10 @@ void Consumer() {
     for (;;) {
         printf("consumer suspend?\n");
         Suspend([]() { return not q.empty() or finished; });
-        if (finished) break;
+        if (finished) {
+            printf("consumer exit\n");
+            break;
+        }
         int a = q.front();
         q.pop();
         printf("consumer get: %d\n", a);
@@ -25,13 +28,15 @@ void Producer() {
         printf("producer pushing %d\n", i);
         q.push(i);
     }
-    puts("producer exit");
     finished = true;
+    puts("producer exit");
 }
 
 int main() {
     q = std::queue<int>{};
     auto producer = Conjure(Config("producer"), Producer);
+    auto consumer = Conjure(Config("consumer"), Consumer);
     Resume(producer);
-    Consumer();
+    Resume(consumer);
+    Wait(consumer);
 }

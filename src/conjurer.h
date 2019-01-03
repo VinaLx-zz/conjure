@@ -38,7 +38,6 @@ class Conjurer {
     Conjure(const Config &config, F f, Args &&... args) {
         auto co =
             UnmanagedConjure(config, std::move(f), std::forward<Args>(args)...);
-        co->Name(config.name);
         auto co_client = co.get();
         conjuries_.push_back(std::move(co));
 
@@ -48,19 +47,26 @@ class Conjurer {
     template <typename T>
     T Wait(ConjuryClient<T> *co) {
         Conjury *current = SetNextActive(co);
-        current->Wait(*co);
+        if (not current->Wait(*co)) {
+            SetNextActive(sche_co_.get());
+            sche_co_->ResumeFrom(*current);
+        }
         T result = co->UnsafeGetResult();
         Destroy(co);
         return result; // NRVO
     }
 
     void End() {
+        // printf("%s ending...\n", ActiveConjury()->Name());
         Conjury *next = ActiveConjury()->Parent();
         if (next == nullptr) {
             next = sche_co_.get();
         }
+        // else {
+        // printf("parent is %s\n", next->Name());
+        // }
         Conjury *current = SetNextActive(next);
-        current->FinishYield(*next);
+        current->Done(*next);
     }
 
     template <typename P>
@@ -154,9 +160,11 @@ class Conjurer {
 
         Stack stack(config.stack_size);
 
-        return std::make_unique<C>(
+        auto co = std::make_unique<C>(
             std::move(stack),
             WrapCall(std::move(f), std::forward<Args>(args)...));
+        co->Name(config.name);
+        return co;
     }
 
     Conjury *SetNextActive(Conjury *co) {

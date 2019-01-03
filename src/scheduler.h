@@ -2,6 +2,7 @@
 #define CONJURE_SCHEDULER_H_
 
 #include "./conjury.h"
+#include <assert.h>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -50,7 +51,7 @@ class Scheduler {
                     ready_pred());
         }
 
-        const std::string &Name() {
+        const char *Name() {
             return c->Name();
         }
 
@@ -70,6 +71,7 @@ class Scheduler {
     }
 
     void TryRefreshBlockingQueue() {
+        assert(not suspended_queue_.empty());
         int new_blocking_end = 0;
         for (int i = 0; i < suspended_queue_.size(); ++i) {
             auto &c = suspended_queue_[i];
