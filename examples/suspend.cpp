@@ -1,4 +1,4 @@
-#include "conjure/conjurer.h"
+#include "conjure/interfaces.h"
 #include <queue>
 #include <stdio.h>
 
