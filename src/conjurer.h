@@ -3,10 +3,10 @@
 
 #include "./conjury.h"
 #include "./scheduler.h"
-#include <memory>
 #include <algorithm>
-#include <type_traits>
+#include <memory>
 #include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace conjure {
@@ -16,15 +16,16 @@ using ConjuryClientT = ConjuryClient<WrapperResultT<F, Args...>>;
 
 class Conjurer {
   public:
-    Conjurer() : scheduler_(std::make_unique<Scheduler>()),
-                 sche_co_(UnmanagedConjure(
-                    Config("__scheduler__"), &RunScheduler, this)) {
+    Conjurer()
+        : scheduler_(std::make_unique<Scheduler>()),
+          sche_co_(
+              UnmanagedConjure(Config("__scheduler__"), &RunScheduler, this)) {
         auto main_co = std::make_unique<Conjury>();
         main_co->Name("__main__");
         active_conjury_ = main_co.get();
         conjuries_.push_back(std::move(main_co));
         // printf(
-            // "main_co: %p, scheduler: %p\n", active_conjury_, sche_co_.get());
+        // "main_co: %p, scheduler: %p\n", active_conjury_, sche_co_.get());
     }
 
     static Conjurer *Instance() {
@@ -54,7 +55,7 @@ class Conjurer {
     }
 
     void End() {
-        Conjury* next = ActiveConjury()->Parent();
+        Conjury *next = ActiveConjury()->Parent();
         if (next == nullptr) {
             next = sche_co_.get();
         }
@@ -77,7 +78,7 @@ class Conjurer {
         YieldTo(sche_co_.get());
     }
 
-    void Resume(Conjury* next) {
+    void Resume(Conjury *next) {
         YieldTo(next);
     }
 
@@ -114,14 +115,14 @@ class Conjurer {
         return true;
     }
 
-    Conjury* ActiveConjury() {
+    Conjury *ActiveConjury() {
         return active_conjury_;
     }
 
   private:
     static std::unique_ptr<Conjurer> instance_;
 
-    static void RunScheduler(Conjurer* conjurer) {
+    static void RunScheduler(Conjurer *conjurer) {
         for (;;) {
             Conjury *next = conjurer->scheduler_->GetNext();
             if (next != nullptr) {
@@ -135,7 +136,7 @@ class Conjurer {
         UnscheduledYieldTo(next);
     }
 
-    void UnscheduledYieldTo(Conjury* next) {
+    void UnscheduledYieldTo(Conjury *next) {
         Conjury *current = SetNextActive(next);
         current->Yield(*next);
     }
@@ -198,8 +199,9 @@ void Suspend(P p = P{}) {
     Conjurer::Instance()->Suspend(std::move(p));
 }
 
-inline bool Resume(Conjury* next) {
-    if (next->GetState() != Conjury::State::kReady and next->GetState() != Conjury::State::kInitial) {
+inline bool Resume(Conjury *next) {
+    if (next->GetState() != Conjury::State::kReady and
+        next->GetState() != Conjury::State::kInitial) {
         return false;
     }
     Conjurer::Instance()->Resume(next);
@@ -220,7 +222,6 @@ template <typename U>
 void Yield(U &&u) {
     return Conjurer::Instance()->Yield(std::forward<U>(u));
 }
-
 
 } // namespace conjure
 

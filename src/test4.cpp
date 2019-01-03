@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <queue>
 #include "conjurer.h"
+#include <queue>
+#include <stdio.h>
 
 using namespace conjure;
 
@@ -10,7 +10,7 @@ bool finished = false;
 void Consumer() {
     for (;;) {
         printf("consumer suspend?\n");
-        Suspend( []() { return not q.empty() or finished; });
+        Suspend([]() { return not q.empty() or finished; });
         if (finished) break;
         int a = q.front();
         q.pop();

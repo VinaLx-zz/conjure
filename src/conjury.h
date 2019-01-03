@@ -129,11 +129,11 @@ class Conjury {
         state_ = state;
     }
 
-    const std::string& Name() const {
+    const std::string &Name() const {
         return name_;
     }
 
-    void Name(const std::string& name) {
+    void Name(const std::string &name) {
         name_ = name;
     }
 

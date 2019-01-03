@@ -3,10 +3,10 @@
 
 #include "./conjury.h"
 #include <deque>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <stdio.h>
-#include <functional>
 
 namespace conjure {
 
@@ -14,22 +14,22 @@ class Scheduler {
   public:
     using Pointer = std::unique_ptr<Scheduler>;
 
-    void RegisterReady(Conjury* c) {
+    void RegisterReady(Conjury *c) {
         ready_queue_.push_back(c);
     }
 
-    void RegisterSuspended(Conjury* c) {
+    void RegisterSuspended(Conjury *c) {
         suspended_queue_.emplace_back(c);
     }
 
     template <typename P>
-    void RegisterSuspended(Conjury* c, P p) {
+    void RegisterSuspended(Conjury *c, P p) {
         suspended_queue_.emplace_back(c, std::move(p));
     }
 
-    Conjury* GetNext() {
+    Conjury *GetNext() {
         for (;;) {
-            if (Conjury* c = TryGetReadyQueueNext()) {
+            if (Conjury *c = TryGetReadyQueueNext()) {
                 return c;
             }
             TryRefreshBlockingQueue();
@@ -39,28 +39,28 @@ class Scheduler {
 
   private:
     struct SuspendedConjury {
-        SuspendedConjury(Conjury* c): c(c) {}
+        SuspendedConjury(Conjury *c) : c(c) {}
 
         template <typename P>
-        SuspendedConjury(Conjury* c, P p): c(c), ready_pred(std::move(p)) {}
+        SuspendedConjury(Conjury *c, P p) : c(c), ready_pred(std::move(p)) {}
 
         bool IsReady() const {
             return c->GetState() == Conjury::State::kReady or
-                (c->GetState() == Conjury::State::kSuspended and
-                 ready_pred and ready_pred());
+                   (c->GetState() == Conjury::State::kSuspended and
+                    ready_pred and ready_pred());
         }
 
-        const std::string& Name() {
+        const std::string &Name() {
             return c->Name();
         }
 
-        Conjury* c;
+        Conjury *c;
         std::function<bool()> ready_pred;
     };
 
-    Conjury* TryGetReadyQueueNext() {
-        for (; not ready_queue_.empty(); ) {
-            Conjury* c = ready_queue_.front();
+    Conjury *TryGetReadyQueueNext() {
+        for (; not ready_queue_.empty();) {
+            Conjury *c = ready_queue_.front();
             ready_queue_.pop_front();
             if (c->GetState() == Conjury::State::kReady) {
                 return c;
@@ -72,7 +72,7 @@ class Scheduler {
     void TryRefreshBlockingQueue() {
         int new_blocking_end = 0;
         for (int i = 0; i < suspended_queue_.size(); ++i) {
-            auto& c = suspended_queue_[i];
+            auto &c = suspended_queue_[i];
             if (c.IsReady()) {
                 c.c->UnsafeSetState(Conjury::State::kReady);
                 RegisterReady(c.c);
@@ -81,14 +81,13 @@ class Scheduler {
             }
         }
         suspended_queue_.erase(
-                begin(suspended_queue_) + new_blocking_end,
-                end(suspended_queue_));
+            begin(suspended_queue_) + new_blocking_end, end(suspended_queue_));
     }
 
-    std::deque<Conjury*> ready_queue_;
+    std::deque<Conjury *> ready_queue_;
     std::vector<SuspendedConjury> suspended_queue_;
 };
 
-}  // namespace conjure
+} // namespace conjure
 
 #endif
