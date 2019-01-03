@@ -5,6 +5,7 @@
 #include "./scheduler.h"
 #include <memory>
 #include <algorithm>
+#include <type_traits>
 #include <stdexcept>
 #include <vector>
 
@@ -58,9 +59,15 @@ class Conjurer {
         current->FinishYield(*next);
     }
 
-    void Suspend() {
+    template <typename P = Void>
+    void Suspend(P p = P{}) {
         Conjury *current = SetNextActive(sche_co_.get());
-        scheduler_->RegisterSuspended(current);
+        if constexpr (std::is_same_v<P, Void>) {
+            scheduler_->RegisterSuspended(current);
+        } else {
+            static_assert(std::is_convertible_v<std::invoke_result_t<P>, bool>);
+            scheduler_->RegisterSuspended(current, std::move(p));
+        }
         current->Suspend(*sche_co_);
     }
 
@@ -180,8 +187,9 @@ inline void End() {
     Conjurer::Instance()->End();
 }
 
-inline void Suspend() {
-    Conjurer::Instance()->Suspend();
+template <typename P = Void>
+void Suspend(P p = P{}) {
+    Conjurer::Instance()->Suspend(std::move(p));
 }
 
 inline bool Resume(Conjury* next) {

@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <stdio.h>
+#include <functional>
 
 namespace conjure {
 
@@ -18,7 +19,12 @@ class Scheduler {
     }
 
     void RegisterSuspended(Conjury* c) {
-        blocking_queue_.push_back(c);
+        suspended_queue_.emplace_back(c);
+    }
+
+    template <typename P>
+    void RegisterSuspended(Conjury* c, P p) {
+        suspended_queue_.emplace_back(c, std::move(p));
     }
 
     Conjury* GetNext() {
@@ -33,6 +39,22 @@ class Scheduler {
     }
 
   private:
+    struct SuspendedConjury {
+        SuspendedConjury(Conjury* c): c(c) {}
+
+        template <typename P>
+        SuspendedConjury(Conjury* c, P p): c(c), ready_pred(std::move(p)) {}
+
+        bool IsReady() {
+            return c->GetState() == Conjury::State::kReady or
+                (c->GetState() == Conjury::State::kSuspended and
+                 ready_pred and ready_pred());
+        }
+
+        Conjury* c;
+        std::function<bool()> ready_pred;
+    };
+
     Conjury* TryGetReadyQueueNext() {
         for (; not ready_queue_.empty(); ) {
             Conjury* c = ready_queue_.front();
@@ -46,26 +68,21 @@ class Scheduler {
 
     void TryRefreshBlockingQueue() {
         int new_blocking_end = 0;
-        for (int i = 0; i < blocking_queue_.size(); ++i) {
-            Conjury* c = blocking_queue_[i];
-            switch (c->GetState()) {
-            case Conjury::State::kSuspended:
-                blocking_queue_[new_blocking_end++] = c;
-                break;
-            case Conjury::State::kReady:
-                RegisterReady(c);
-                break;
-            default:
-                break;
+        for (int i = 0; i < suspended_queue_.size(); ++i) {
+            auto& c = suspended_queue_[i];
+            if (c.IsReady()) {
+                RegisterReady(c.c);
+            } else if (c.c->GetState() == Conjury::State::kSuspended) {
+                suspended_queue_[new_blocking_end++] = std::move(c);
             }
         }
-        blocking_queue_.erase(
-                begin(blocking_queue_) + new_blocking_end,
-                end(blocking_queue_));
+        suspended_queue_.erase(
+                begin(suspended_queue_) + new_blocking_end,
+                end(suspended_queue_));
     }
 
     std::deque<Conjury*> ready_queue_;
-    std::vector<Conjury*> blocking_queue_;
+    std::vector<SuspendedConjury> suspended_queue_;
 };
 
 }  // namespace conjure
