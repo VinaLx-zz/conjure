@@ -14,7 +14,7 @@ void Consumer() {
         if (finished) break;
         int a = q.front();
         q.pop();
-        printf("Consumer get: %d\n", a);
+        printf("consumer get: %d\n", a);
     }
 }
 
@@ -22,7 +22,7 @@ void Producer() {
     for (int i = 0; i < 10; ++i) {
         printf("producer suspend?\n");
         Suspend([]() { return q.empty(); });
-        printf("Producer pushing %d\n", i);
+        printf("producer pushing %d\n", i);
         q.push(i);
     }
     puts("producer exit");
