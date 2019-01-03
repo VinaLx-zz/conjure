@@ -1,8 +1,8 @@
 #ifndef CONJURE_STACK_H_
 #define CONJURE_STACK_H_
 
-#include <memory>
 #include <stdint.h>
+#include <memory>
 
 namespace conjure {
 
@@ -16,7 +16,7 @@ struct Stack {
         return (char *)s;
     }
 
-    Stack()  = default;
+    Stack() = default;
 
     Stack(int64_t stack_size)
         : data(new char[stack_size + kAlign]),

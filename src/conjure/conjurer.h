@@ -4,7 +4,6 @@
 #include "conjure/config.h"
 #include "conjure/conjury.h"
 #include "conjure/scheduler.h"
-
 #include <algorithm>
 #include <memory>
 #include <stdexcept>

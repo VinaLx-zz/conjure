@@ -4,11 +4,10 @@
 #include "conjure/function-wrapper.h"
 #include "conjure/stack.h"
 #include "conjure/state.h"
-
 #include <assert.h>
+#include <stdint.h>
 #include <memory>
 #include <optional>
-#include <stdint.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
