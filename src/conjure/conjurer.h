@@ -3,6 +3,7 @@
 
 #include "conjure/config.h"
 #include "conjure/conjury.h"
+#include "conjure/exceptions.h"
 #include "conjure/scheduler.h"
 #include <algorithm>
 #include <memory>
@@ -47,6 +48,9 @@ class Conjurer {
 
     template <typename T>
     T Wait(ConjuryClient<T> *co) {
+        if (IsWaitedByOthers(co)) {
+            throw InconsistentWait(ActiveConjury(), co);
+        }
         Conjury *current = SetNextActive(co);
         if (not current->Wait(*co)) {
             SetNextActive(sche_co_.get());
@@ -97,7 +101,7 @@ class Conjurer {
     void Yield(U &&u) {
         auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
         if (gen_co == nullptr) {
-            throw std::runtime_error("invalid yielding context");
+            throw InvalidYieldContext<G>(ActiveConjury());
         }
         gen_co->StoreGen(std::forward<U>(u));
         SetNextActive(gen_co->Parent());
@@ -140,6 +144,10 @@ class Conjurer {
                 conjurer->UnscheduledYieldTo(next);
             }
         }
+    }
+
+    bool IsWaitedByOthers(Conjury *c) {
+        return c->Parent() != nullptr and c->Parent() != ActiveConjury();
     }
 
     void YieldTo(Conjury *next) {
