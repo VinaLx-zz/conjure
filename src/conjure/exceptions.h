@@ -58,8 +58,8 @@ class InvalidYieldContext : public ConjuryException {
     const char *what() const noexcept override {
         if (what_.empty()) {
             std::ostringstream oss;
-            oss << ConjuryException::what() << " cannot accept a yield of type "
-                << typeid(G);
+            // oss << ConjuryException::what() << " cannot accept a yield of type "
+                // << typeid(G);
             what_ = oss.str();
         }
         return what_.data();

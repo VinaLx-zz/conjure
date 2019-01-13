@@ -12,8 +12,6 @@ struct GenIterEnd {};
 template <typename G>
 struct GenIterator {
 
-    GenIterator() = default;
-
     GenIterator(ConjuryClient<ConjureGen<G>> *conjure) : conjure(conjure) {}
 
     using Self = GenIterator;
@@ -22,25 +20,23 @@ struct GenIterator {
     using pointer = G *;
     using iterator_category = std::input_iterator_tag;
 
-    G &operator*() {
-        return current.value();
+    const G &operator*() {
+        return *current_ptr;
     }
     const G &operator*() const {
-        return current.value();
+        return *current_ptr;
     }
 
-    G *operator->() {
-        return &*current;
+    const G *operator->() {
+        return current_ptr;
     }
     const G *operator->() const {
-        return &*current;
+        return current_ptr;
     }
 
     Self &operator++() {
-        current.reset();
-        if (GenMoveNext(conjure)) {
-            current.emplace(conjure->UnsafeGetGen());
-        }
+        GenMoveNext(conjure);
+        current_ptr = conjure->GetGenPtr();
         return *this;
     }
 
@@ -51,7 +47,7 @@ struct GenIterator {
     }
 
     ConjuryClient<ConjureGen<G>> *conjure;
-    std::optional<G> current;
+    const G* current_ptr;
 };
 
 template <typename G>
@@ -68,7 +64,7 @@ GenIterEnd end(ConjuryClient<ConjureGen<G>> *co) {
 
 template <typename G>
 bool operator==(const GenIterator<G> &iter, GenIterEnd e) {
-    return not iter.current.has_value();
+    return iter.current_ptr == nullptr;
 }
 
 template <typename G>

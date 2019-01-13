@@ -4,6 +4,7 @@
 #include "conjure/function-wrapper.h"
 #include "conjure/stack.h"
 #include "conjure/state.h"
+#include "conjure/value-tunnel.h"
 #include <assert.h>
 #include <stdint.h>
 #include <memory>
@@ -11,6 +12,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <stdio.h>
 
 namespace conjure::detail {
 
@@ -231,21 +234,19 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     using Pointer = std::unique_ptr<ConjuryClient>;
     using ConjuryClientImpl<ConjureGen<G>>::ConjuryClientImpl;
 
-    G UnsafeGetGen() {
-        G val = std::move(gen_store_.value());
-        gen_store_.reset();
+    const G* GetGenPtr() {
         this->UnsafeSetState(State::kReady);
-        return val; // NRVO
+        return tunnel_.GetOne();
     }
 
     template <typename U>
     void StoreGen(U &&u) {
-        gen_store_.emplace(std::forward<U>(u));
+        tunnel_.Pass(std::forward<U>(u));
         this->Parent()->UnsafeSetState(State::kReady);
     }
 
   private:
-    std::optional<G> gen_store_;
+    ValueTunnel<G> tunnel_;
 };
 
 } // namespace conjure
