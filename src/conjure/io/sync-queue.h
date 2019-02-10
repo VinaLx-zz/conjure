@@ -1,7 +1,7 @@
 #ifndef CONJURE_IO_SYNC_QUEUE_H_
 #define CONJURE_IO_SYNC_QUEUE_H_
 
-#include <math.h>
+#include <cmath>
 #include <atomic>
 #include <mutex>
 #include <vector>

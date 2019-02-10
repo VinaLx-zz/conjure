@@ -1,6 +1,7 @@
 #ifndef CONJURE_IO_JOB_H_
 #define CONJURE_IO_JOB_H_
 
+#include "conjure/interfaces.h"
 #include <type_traits>
 
 namespace conjure::io {
@@ -27,11 +28,31 @@ struct PrimJob {
     Converter converter;
 };
 
-template <typename JobImpl>
+template <typename JobImpl, typename T>
 struct Job {
-    PrimJob EraseType() {
-        return PrimJob::Make(JobImpl::Handle, static_cast<JobImpl *>(this));
+    Job() : blocking_conjury_(ActiveConjury()) {}
+
+    PrimJob ToPrimitive() {
+        return PrimJob::Make(Job::HandleAndSetReady, *this);
     }
+
+    T ReturnValue() {
+        return static_cast<JobImpl &>(*this).ReturnValue();
+    }
+
+    void BindConjury(Conjury *c) {
+        blocking_conjury_ = c;
+    }
+
+  private:
+    static void HandleAndSetReady(Job &j) {
+        JobImpl &ji = static_cast<JobImpl &>(j);
+        JobImpl::Handle(ji);
+        assert(j->blocking_conjury_ != nullptr);
+        j->blocking_conjury_->UnsafeSetState(State::kReady);
+    }
+
+    Conjury *blocking_conjury_;
 };
 
 } // namespace conjure::io

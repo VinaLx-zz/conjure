@@ -24,6 +24,10 @@ inline void Suspend() {
     Conjurer::Instance()->Suspend();
 }
 
+inline Conjury *ActiveConjury() {
+    return Conjurer::Instance()->ActiveConjury();
+}
+
 template <bool kTestFirst = true, typename P>
 void SuspendUntil(P p) {
     if constexpr (kTestFirst) {
