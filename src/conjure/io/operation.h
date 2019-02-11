@@ -9,11 +9,11 @@
 namespace conjure::io::job {
 
 struct Open : Job<Open, int> {
-    Open(const char *file_path, int open_mode)
-        : file_path(file_path), open_mode(open_mode) {}
+    Open(const char *file_path, int flag, int mode)
+        : file_path(file_path), flag(flag), mode(mode) {}
 
     static void Handle(Open &o) {
-        o.fd = open(o.file_path, o.open_mode);
+        o.fd = open(o.file_path, o.flag, o.mode);
     }
 
     int ReturnValue() {
@@ -22,7 +22,8 @@ struct Open : Job<Open, int> {
 
     int fd = 0;
     const char *file_path;
-    int open_mode;
+    int flag;
+    int mode;
 };
 
 struct Read : Job<Read, int> {

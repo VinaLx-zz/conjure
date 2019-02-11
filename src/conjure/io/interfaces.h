@@ -17,17 +17,22 @@ R SubmitAndSuspend(Job<JobImpl, R> &j) {
 
 } // namespace detail
 
-int Open(const char *p, int mode) {
-    job::Open j(p, mode);
+inline int Open(const char *p, int flag, int mode = 0) {
+    constexpr int kDefaultMode =
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
+    if (flag | O_CREAT and mode == 0) {
+        mode = kDefaultMode;
+    }
+    job::Open j(p, flag, mode);
     return detail::SubmitAndSuspend(j);
 }
 
-int Read(int fd, void* buffer, int nbyte) {
+inline int Read(int fd, void *buffer, int nbyte) {
     job::Read j(fd, buffer, nbyte);
     return detail::SubmitAndSuspend(j);
 }
 
-int Write(int fd, const void* buffer, int nbyte) {
+inline int Write(int fd, const void *buffer, int nbyte) {
     job::Write j(fd, buffer, nbyte);
     return detail::SubmitAndSuspend(j);
 }
