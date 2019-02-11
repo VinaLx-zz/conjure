@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <string>
 
-namespace conjure::io {
+namespace conjure::io::job {
 
 struct Open : Job<Open, int> {
     Open(const char *file_path, int open_mode)
@@ -45,7 +45,8 @@ struct Read : Job<Read, int> {
 };
 
 struct Write : Job<Write, int> {
-    Write(int fd, const void *buffer, int nbyte) {}
+    Write(int fd, const void *buffer, int nbyte)
+        : fd(fd), buffer(buffer), nbyte(nbyte) {}
 
     static void Handle(Write &w) {
         w.writen = write(w.fd, w.buffer, w.nbyte);
@@ -62,6 +63,6 @@ struct Write : Job<Write, int> {
     int writen = 0;
 };
 
-} // namespace conjure::io
+} // namespace conjure::io::job
 
 #endif // CONJURE_IO_OPERATION_H_

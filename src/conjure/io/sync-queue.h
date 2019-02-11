@@ -51,6 +51,7 @@ struct PowerOfTwoCeil {
 template <typename T>
 T &operator%=(T &lhs, PowerOfTwoCeil rhs) {
     lhs &= rhs.mask;
+    return lhs;
 }
 
 } // namespace detail

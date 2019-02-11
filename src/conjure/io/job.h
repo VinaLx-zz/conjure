@@ -48,8 +48,8 @@ struct Job {
     static void HandleAndSetReady(Job &j) {
         JobImpl &ji = static_cast<JobImpl &>(j);
         JobImpl::Handle(ji);
-        assert(j->blocking_conjury_ != nullptr);
-        j->blocking_conjury_->UnsafeSetState(State::kReady);
+        assert(j.blocking_conjury_ != nullptr);
+        j.blocking_conjury_->UnsafeSetState(State::kReady);
     }
 
     Conjury *blocking_conjury_;
