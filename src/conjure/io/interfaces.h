@@ -32,9 +32,23 @@ inline int Read(int fd, void *buffer, int nbyte) {
     return detail::SubmitAndSuspend(j);
 }
 
+template <size_t N>
+int Read(int fd, char (&arr)[N]) {
+    int n = Read(fd, arr, N - 1);
+    if (n >= 0) {
+        arr[n] = '\0';
+    }
+    return n;
+}
+
 inline int Write(int fd, const void *buffer, int nbyte) {
     job::Write j(fd, buffer, nbyte);
     return detail::SubmitAndSuspend(j);
+}
+
+template <size_t N>
+int Write(int fd, const char (&arr)[N]) {
+    return Write(fd, arr, N);
 }
 
 } // namespace conjure::io
