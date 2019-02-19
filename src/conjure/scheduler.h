@@ -2,12 +2,12 @@
 #define CONJURE_SCHEDULER_H_
 
 #include "conjure/conjury.h"
+#include "conjure/log.h"
 #include <assert.h>
 #include <deque>
 #include <functional>
 #include <memory>
 #include <stdexcept>
-#include <stdio.h>
 
 namespace conjure {
 
@@ -45,10 +45,21 @@ class Scheduler {
         template <typename P>
         SuspendedConjury(Conjury *c, P p) : c(c), ready_pred(std::move(p)) {}
 
-        bool IsReady() const {
-            return c->GetState() == State::kReady or
-                   (c->GetState() == State::kSuspended and ready_pred and
-                    ready_pred());
+        enum ActionState { kReady, kSuspending, kIgnore };
+
+        SuspendedConjury::ActionState ObserveState() {
+            State s = c->GetState();
+            if (s == State::kReady) {
+                return ActionState::kReady;
+            }
+            if (s == State::kSuspended) {
+                if (ready_pred and ready_pred()) {
+                    c->UnsafeSetState(State::kReady);
+                    return ActionState::kReady;
+                }
+                return ActionState::kSuspending;
+            }
+            return ActionState::kIgnore;
         }
 
         const char *Name() {
@@ -65,21 +76,33 @@ class Scheduler {
             ready_queue_.pop_front();
             if (c->GetState() == State::kReady) {
                 return c;
+            } else {
+                CONJURE_LOGF(
+                    "ready_queue ignore: %s, state: %s", c->Name(),
+                    state::ToString(c->GetState()));
             }
         }
         return nullptr;
     }
 
     void TryRefreshBlockingQueue() {
+        assert(ready_queue_.empty());
         assert(not suspended_queue_.empty());
         int new_blocking_end = 0;
         for (int i = 0; i < suspended_queue_.size(); ++i) {
             auto &c = suspended_queue_[i];
-            if (c.IsReady()) {
-                c.c->UnsafeSetState(State::kReady);
+            switch (c.ObserveState()) {
+            case SuspendedConjury::kReady:
                 RegisterReady(c.c);
-            } else if (c.c->GetState() == State::kSuspended) {
+                CONJURE_LOGF("ready from blocking_queue: %s", c.c->Name());
+                break;
+            case SuspendedConjury::kSuspending:
                 suspended_queue_[new_blocking_end++] = std::move(c);
+                break;
+            default:
+                CONJURE_LOGF(
+                    "blocking_queue ignored: %s, state: %s", c.c->Name(),
+                    state::ToString(c.c->GetState()));
             }
         }
         suspended_queue_.erase(

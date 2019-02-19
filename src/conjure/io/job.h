@@ -49,7 +49,7 @@ struct Job {
         JobImpl &ji = static_cast<JobImpl &>(j);
         JobImpl::Handle(ji);
         assert(j.blocking_conjury_ != nullptr);
-        j.blocking_conjury_->UnsafeSetState(State::kReady);
+        j.blocking_conjury_->Wake();
     }
 
     Conjury *blocking_conjury_;

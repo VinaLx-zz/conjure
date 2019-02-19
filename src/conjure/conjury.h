@@ -2,6 +2,7 @@
 #define CONJURE_CONJURY_H_
 
 #include "conjure/function-wrapper.h"
+#include "conjure/log.h"
 #include "conjure/stack.h"
 #include "conjure/state.h"
 #include "conjure/value-tunnel.h"
@@ -12,8 +13,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <stdio.h>
 
 namespace conjure::detail {
 
@@ -142,9 +141,11 @@ class Conjury {
     void UnsafeResumeFrom(Conjury &from) {
         if (state_ == State::kInitial) {
             state_ = State::kRunning;
+            CONJURE_LOGF("%s ==> %s", from.Name(), Name());
             ContextSwitch(func_wrapper_this_, &from.context_, &context_);
         } else {
             state_ = State::kRunning;
+            CONJURE_LOGF("%s ==> %s", from.Name(), Name());
             ContextSwitch(nullptr, &from.context_, &context_);
         }
     }
@@ -234,7 +235,7 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     using Pointer = std::unique_ptr<ConjuryClient>;
     using ConjuryClientImpl<ConjureGen<G>>::ConjuryClientImpl;
 
-    const G* GetGenPtr() {
+    const G *GetGenPtr() {
         this->UnsafeSetState(State::kReady);
         return tunnel_.GetOne();
     }
