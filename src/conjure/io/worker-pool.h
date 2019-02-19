@@ -3,6 +3,7 @@
 
 #include "conjure/io/job.h"
 #include "conjure/io/sync-queue.h"
+#include "conjure/log.h"
 #include <chrono>
 #include <limits>
 #include <memory>
@@ -35,6 +36,7 @@ class Worker {
     void Stop() {
         should_stop_ = true;
         thread_.join();
+        CONJURE_LOGF("worker %d stopped", id_);
     }
 
     void Start() {
@@ -112,10 +114,12 @@ class WorkerPool {
         for (auto &worker : workers_) {
             worker->Start();
         }
+        active_ = true;
         return true;
     }
 
     bool StopAll() {
+        CONJURE_LOGL("worker pool stopping");
         if (not active_) {
             return false;
         }
