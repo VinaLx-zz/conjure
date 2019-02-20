@@ -29,6 +29,9 @@ class Scheduler {
     }
 
     Conjury *GetNext() {
+        CONJURE_LOGF(
+            "scheduler: ready: %d, suspended: %d", (int)ready_queue_.size(),
+            (int)suspended_queue_.size());
         for (;;) {
             if (Conjury *c = TryGetReadyQueueNext()) {
                 return c;
@@ -48,6 +51,7 @@ class Scheduler {
         enum ActionState { kReady, kSuspending, kIgnore };
 
         SuspendedConjury::ActionState ObserveState() {
+            c->ConsumeWakeUp();
             State s = c->GetState();
             if (s == State::kReady) {
                 return ActionState::kReady;

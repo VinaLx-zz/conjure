@@ -5,6 +5,7 @@
 #include <atomic>
 #include <mutex>
 #include <vector>
+#include "conjure/log.h"
 
 namespace conjure::io {
 
@@ -79,6 +80,8 @@ class SyncQueue {
         data_[place] = val;
         ++size_;
 
+        CONJURE_LOGF("size after push: %d", size_.load());
+
         return true;
     }
 
@@ -95,6 +98,8 @@ class SyncQueue {
         head_ %= capacity_;
         store = data_[place];
         --size_;
+
+        CONJURE_LOGF("size after pop: %d", size_.load());
 
         return true;
     }

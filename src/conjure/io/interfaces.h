@@ -48,7 +48,7 @@ inline int Write(int fd, const void *buffer, int nbyte) {
 
 template <size_t N>
 int Write(int fd, const char (&arr)[N]) {
-    return Write(fd, arr, N);
+    return Write(fd, arr, N - 1);
 }
 
 } // namespace conjure::io

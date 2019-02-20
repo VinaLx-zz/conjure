@@ -91,8 +91,16 @@ class Conjury {
     }
 
     bool Wake() {
-        if (state_ == State::kSuspended) {
+        if (not wakeup_flag_) {
+            return wakeup_flag_ = true;
+        }
+        return false;
+    }
+
+    bool ConsumeWakeUp() {
+        if (wakeup_flag_) {
             state_ = State::kReady;
+            wakeup_flag_ = false;
             return true;
         }
         return false;
@@ -162,6 +170,8 @@ class Conjury {
 
     void *func_wrapper_this_ = nullptr;
     Conjury *parent_conjury_ = nullptr;
+
+    volatile bool wakeup_flag_ = false;
 
     std::string name_;
 };

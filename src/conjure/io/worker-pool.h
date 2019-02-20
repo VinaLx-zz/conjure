@@ -57,7 +57,7 @@ class Worker {
             if (TryGetJob(j)) {
                 j.Call();
             } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                // std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
     }
@@ -90,7 +90,7 @@ class WorkerPool {
         StopAll();
     }
 
-    static WorkerPool &Instance(int pool_size = 8) {
+    static WorkerPool &Instance(int pool_size = 4) {
         static WorkerPool worker_pool(pool_size);
         return worker_pool;
     }
