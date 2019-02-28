@@ -5,11 +5,10 @@
 #include "conjure/conjury.h"
 #include "conjure/exceptions.h"
 #include "conjure/scheduler.h"
-#include <algorithm>
+#include "conjure/stage.h"
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
-#include <vector>
 
 namespace conjure {
 
@@ -19,13 +18,9 @@ using ConjuryClientT = ConjuryClient<WrapperResultT<F, Args...>>;
 class Conjurer {
   public:
     Conjurer()
-        : scheduler_(std::make_unique<Scheduler>()),
+        : stage_(InitMainConjury()), scheduler_(std::make_unique<Scheduler>()),
           sche_co_(
               UnmanagedConjure(Config("__scheduler__"), &RunScheduler, this)) {
-        auto main_co = std::make_unique<Conjury>();
-        main_co->Name("__main__");
-        active_conjury_ = main_co.get();
-        conjuries_.push_back(std::move(main_co));
         // printf(
         // "main_co: %p, scheduler: %p\n", active_conjury_, sche_co_.get());
     }
@@ -41,7 +36,7 @@ class Conjurer {
         auto co =
             UnmanagedConjure(config, std::move(f), std::forward<Args>(args)...);
         auto co_client = co.get();
-        conjuries_.push_back(std::move(co));
+        stage_.Manage(std::move(co));
 
         return co_client;
     }
@@ -51,42 +46,46 @@ class Conjurer {
         if (IsWaitedByOthers(co)) {
             throw InconsistentWait(ActiveConjury(), co);
         }
-        Conjury *current = SetNextActive(co);
-        if (not current->Wait(*co)) {
-            SetNextActive(sche_co_.get());
-            sche_co_->ResumeFrom(*current);
+        // Conjury *current = SetNextActive(co);
+        Conjury *current = ActiveConjury();
+        co->ReturnTarget(current);
+        if (not stage_.SwitchTo(co, State::kWaiting)) {
+            current->UnsafeSetState(State::kWaiting);
+            stage_.UnsafeSwitchTo(sche_co_.get());
         }
         T result = co->UnsafeGetResult();
-        Destroy(co);
+        stage_.Destroy(co);
         return result; // NRVO
     }
 
     void End() {
-        // printf("%s ending...\n", ActiveConjury()->Name());
-        Conjury *next = ActiveConjury()->ReturnTarget();
-        if (next == nullptr) {
+        CONJURE_LOGF("%s ending", ActiveConjury()->Name());
+        Conjury *next = nullptr;
+        if (Conjury *target = ActiveConjury()->ReturnTarget();
+            target != nullptr) {
+            // TODO: is this assert correct?
+            assert(target->GetState() == State::kWaiting);
+            next = target;
+            // printf("parent is %s\n", next->Name());
+        } else {
             next = sche_co_.get();
         }
-        // else {
-        // printf("parent is %s\n", next->Name());
-        // }
-        Conjury *current = SetNextActive(next);
-        current->Done(*next);
+        stage_.UnsafeSwitchTo(next, State::kFinished);
     }
 
     template <typename P = Void>
     void Suspend(P p = P{}) {
-        Conjury *current = SetNextActive(sche_co_.get());
+        Conjury *current = ActiveConjury();
         if constexpr (std::is_same_v<P, Void>) {
             scheduler_->RegisterSuspended(current);
         } else {
             scheduler_->RegisterSuspended(current, std::move(p));
         }
-        current->Suspend(*sche_co_);
+        stage_.UnsafeSwitchTo(sche_co_.get(), State::kSuspended);
     }
 
     void Yield() {
-        YieldTo(sche_co_.get());
+        stage_.UnsafeSwitchTo(sche_co_.get(), State::kReady);
     }
 
     bool Resume(Conjury *next) {
@@ -99,70 +98,62 @@ class Conjurer {
 
     template <typename U, typename G = std::decay_t<U>>
     void Yield(U &&u) {
-        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
-        if (gen_co == nullptr) {
-            throw InvalidYieldContext<G>(ActiveConjury());
-        }
-        gen_co->StoreGen(std::forward<U>(u));
-        SetNextActive(gen_co->ReturnTarget());
-        gen_co->Wait(*gen_co->ReturnTarget());
+        // auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
+        // if (gen_co == nullptr) {
+        // throw InvalidYieldContext<G>(ActiveConjury());
+        // }
+        // gen_co->StoreGen(std::forward<U>(u));
+        // SetNextActive(gen_co->ReturnTarget());
+        // gen_co->Wait(*gen_co->ReturnTarget());
     }
 
     template <typename G>
     bool GenMoveNext(ConjuryClient<ConjureGen<G>> *gen_co) {
-        Conjury *current = SetNextActive(gen_co);
-        current->Wait(*gen_co);
-        if (gen_co->IsFinished()) {
-            Destroy(gen_co);
-            return false;
-        }
-        return true;
-    }
-
-    bool Destroy(Conjury *co) {
-        auto iter = std::find_if(
-            begin(conjuries_), end(conjuries_),
-            [co](const auto &cop) { return cop.get() == co; });
-        if (iter == end(conjuries_)) {
-            return false;
-        }
-        conjuries_.erase(iter);
-        return true;
+        // Conjury *current = ActiveConjury();
+        // current->Wait(*gen_co);
+        // stage_.SwitchTo(gen_co);
+        // if (gen_co->IsFinished()) {
+        // Destroy(gen_co);
+        // return false;
+        // }
+        // return true;
     }
 
     Conjury *ActiveConjury() {
-        return active_conjury_;
+        return stage_.ActiveConjury();
     }
 
   private:
     static std::unique_ptr<Conjurer> instance_;
 
+    static Conjury::Pointer InitMainConjury() {
+        auto main_co = std::make_unique<Conjury>();
+        main_co->Name("__main__");
+        return main_co;
+    }
+
     static void RunScheduler(Conjurer *conjurer) {
         for (;;) {
             Conjury *next = conjurer->scheduler_->GetNext();
             if (next != nullptr) {
-                conjurer->UnscheduledYieldTo(next);
+                conjurer->stage_.UnsafeSwitchTo(next);
             }
         }
     }
 
     bool IsWaitedByOthers(Conjury *c) {
-        return c->ReturnTarget() != nullptr and c->ReturnTarget() != ActiveConjury();
+        return c->ReturnTarget() != nullptr and
+               c->ReturnTarget() != ActiveConjury();
     }
 
     void YieldTo(Conjury *next) {
         scheduler_->RegisterReady(ActiveConjury());
-        UnscheduledYieldTo(next);
-    }
-
-    void UnscheduledYieldTo(Conjury *next) {
-        Conjury *current = SetNextActive(next);
-        current->Yield(*next);
+        stage_.SwitchTo(next, State::kReady);
     }
 
     template <typename R>
     ConjuryClient<R> *GetActiveConjuryAs() {
-        auto co_client = dynamic_cast<ConjuryClient<R> *>(active_conjury_);
+        auto co_client = dynamic_cast<ConjuryClient<R> *>(ActiveConjury());
         return co_client;
     }
 
@@ -180,19 +171,11 @@ class Conjurer {
         return co;
     }
 
-    Conjury *SetNextActive(Conjury *co) {
-        Conjury *old = active_conjury_;
-        active_conjury_ = co;
-        return old;
-    }
-
-    Conjury *active_conjury_;
+    Stage stage_;
 
     Scheduler::Pointer scheduler_;
 
     Conjury::Pointer sche_co_;
-
-    std::vector<Conjury::Pointer> conjuries_;
 };
 
 } // namespace conjure

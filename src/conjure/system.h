@@ -2,6 +2,7 @@
 #define CONJURE_SYSTEM_H_
 
 #include <stdint.h>
+#include "conjure/log.h"
 
 namespace conjure::system {
 

@@ -8,7 +8,7 @@ int MultTwo(int a) {
 }
 
 int main() {
-    auto co = Conjure(Config(), MultTwo, 2);
+    auto co = Conjure(Config("MultTwo"), MultTwo, 2);
 
     // Control transfer to MultTwo
     int result = Wait(co);

@@ -33,27 +33,6 @@ class Conjury {
         return state_ == State::kFinished;
     }
 
-    void Done(Conjury &next) {
-        // printf("ending current, this: %p, parent: %p\n", this,
-        // return_target_);
-        if (ReturnTarget()) {
-            assert(ReturnTarget()->state_ == State::kWaiting);
-            ReturnTarget()->state_ = State::kReady;
-        }
-        YieldAndSetState(State::kFinished, next);
-    }
-
-    void Yield(Conjury &next) {
-        [[maybe_unused]] bool success = YieldAndSetState(State::kReady, next);
-        assert(success);
-    }
-
-    void Suspend(Conjury &next) {
-        [[maybe_unused]] bool success =
-            YieldAndSetState(State::kSuspended, next);
-        assert(success);
-    }
-
     bool Wake() {
         if (not wakeup_flag_) {
             return wakeup_flag_ = true;
@@ -70,14 +49,12 @@ class Conjury {
         return false;
     }
 
-    bool Wait(Conjury &next) {
-        // printf("setting parent of %s to %s\n", next.Name(), Name());
-        next.return_target_ = this;
-        return YieldAndSetState(State::kWaiting, next);
-    }
-
     Conjury *ReturnTarget() {
         return return_target_;
+    }
+
+    void ReturnTarget(Conjury* conjury) {
+        return_target_ = conjury;
     }
 
     State GetState() const {
@@ -96,35 +73,12 @@ class Conjury {
         name_ = name;
     }
 
-    bool ResumeFrom(Conjury &from) {
-        if (state_ == State::kFinished) {
-            return true;
-        }
-        if (not state::IsExecutable(state_)) {
-            // puts(state::ToString(state_));
-            return false;
-        }
-        // assert(state != State::kRunning);
-        UnsafeResumeFrom(from);
-        return true;
-    }
-
-  private:
-    void UnsafeResumeFrom(Conjury &from) {
-        if (state_ == State::kInitial) {
-            state_ = State::kRunning;
-            CONJURE_LOGF("%s ==> %s", from.Name(), Name());
-            ContextSwitch(func_wrapper_this_, &from.context_, &context_);
-        } else {
-            state_ = State::kRunning;
-            CONJURE_LOGF("%s ==> %s", from.Name(), Name());
-            ContextSwitch(nullptr, &from.context_, &context_);
-        }
-    }
-
-    bool YieldAndSetState(State s, Conjury &to) {
-        state_ = s;
-        return to.ResumeFrom(*this);
+    void SwitchTo(Conjury &to) {
+        void *wrapper_this =
+            to.GetState() == State::kInitial ? to.func_wrapper_this_ : nullptr;
+        to.state_ = State::kRunning;
+        CONJURE_LOGF("%s ==> %s", Name(), to.Name());
+        ContextSwitch(wrapper_this, &context_, &to.context_);
     }
 
   protected:
