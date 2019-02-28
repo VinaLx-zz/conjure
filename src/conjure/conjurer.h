@@ -63,7 +63,7 @@ class Conjurer {
 
     void End() {
         // printf("%s ending...\n", ActiveConjury()->Name());
-        Conjury *next = ActiveConjury()->Parent();
+        Conjury *next = ActiveConjury()->ReturnTarget();
         if (next == nullptr) {
             next = sche_co_.get();
         }
@@ -104,8 +104,8 @@ class Conjurer {
             throw InvalidYieldContext<G>(ActiveConjury());
         }
         gen_co->StoreGen(std::forward<U>(u));
-        SetNextActive(gen_co->Parent());
-        gen_co->Wait(*gen_co->Parent());
+        SetNextActive(gen_co->ReturnTarget());
+        gen_co->Wait(*gen_co->ReturnTarget());
     }
 
     template <typename G>
@@ -147,7 +147,7 @@ class Conjurer {
     }
 
     bool IsWaitedByOthers(Conjury *c) {
-        return c->Parent() != nullptr and c->Parent() != ActiveConjury();
+        return c->ReturnTarget() != nullptr and c->ReturnTarget() != ActiveConjury();
     }
 
     void YieldTo(Conjury *next) {

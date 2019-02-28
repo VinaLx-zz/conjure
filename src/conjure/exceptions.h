@@ -40,7 +40,7 @@ class InconsistentWait : public ConjuryException {
         if (what_.empty()) {
             std::ostringstream oss;
             oss << ConjuryException::what() << " wait " << waited_->Name()
-                << " who's waited by " << waited_->Parent()->Name();
+                << " who's waited by " << waited_->ReturnTarget()->Name();
             what_ = oss.str();
         }
         return what_.data();

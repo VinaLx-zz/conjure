@@ -71,10 +71,10 @@ class Conjury {
 
     void Done(Conjury &next) {
         // printf("ending current, this: %p, parent: %p\n", this,
-        // parent_conjury_);
-        if (Parent()) {
-            assert(Parent()->state_ == State::kWaiting);
-            Parent()->state_ = State::kReady;
+        // return_target_);
+        if (ReturnTarget()) {
+            assert(ReturnTarget()->state_ == State::kWaiting);
+            ReturnTarget()->state_ = State::kReady;
         }
         YieldAndSetState(State::kFinished, next);
     }
@@ -108,12 +108,12 @@ class Conjury {
 
     bool Wait(Conjury &next) {
         // printf("setting parent of %s to %s\n", next.Name(), Name());
-        next.parent_conjury_ = this;
+        next.return_target_ = this;
         return YieldAndSetState(State::kWaiting, next);
     }
 
-    Conjury *Parent() {
-        return parent_conjury_;
+    Conjury *ReturnTarget() {
+        return return_target_;
     }
 
     State GetState() const {
@@ -169,7 +169,7 @@ class Conjury {
     State state_ = State::kInitial;
 
     void *func_wrapper_this_ = nullptr;
-    Conjury *parent_conjury_ = nullptr;
+    Conjury *return_target_ = nullptr;
 
     volatile bool wakeup_flag_ = false;
 
@@ -253,7 +253,7 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     template <typename U>
     void StoreGen(U &&u) {
         tunnel_.Pass(std::forward<U>(u));
-        this->Parent()->UnsafeSetState(State::kReady);
+        this->ReturnTarget()->UnsafeSetState(State::kReady);
     }
 
   private:
