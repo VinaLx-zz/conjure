@@ -5,6 +5,7 @@
 #include "conjure/log.h"
 #include "conjure/stack.h"
 #include "conjure/state.h"
+#include "conjure/system.h"
 #include "conjure/value-tunnel.h"
 #include <assert.h>
 #include <stdint.h>
@@ -14,44 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace conjure::detail {
-
-struct Context;
-
-} // namespace conjure::detail
-
-extern "C" {
-
-void ContextSwitch(
-    void *this_, conjure::detail::Context *from,
-    conjure::detail::Context *to) asm("ContextSwitch");
-
-} // extern "C"
-
 namespace conjure {
-
-namespace detail {
-
-struct CalleeSavedRegs {
-    uint64_t rbx = 0;
-    uint64_t rbp = 0;
-    uint64_t r12 = 0;
-    uint64_t r13 = 0;
-    uint64_t r14 = 0;
-    uint64_t r15 = 0;
-};
-
-struct Context {
-    Context(void *stack_ptr = nullptr, void *return_addr = nullptr)
-        : stack_ptr(stack_ptr), return_addr(return_addr) {}
-
-    detail::CalleeSavedRegs registers;
-
-    void *stack_ptr;
-    void *return_addr;
-};
-
-} // namespace detail
 
 class Conjury {
   public:
@@ -165,7 +129,7 @@ class Conjury {
 
   protected:
     Stack stack_;
-    detail::Context context_;
+    system::Context context_;
     State state_ = State::kInitial;
 
     void *func_wrapper_this_ = nullptr;
