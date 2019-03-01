@@ -53,7 +53,7 @@ class Conjury {
         return return_target_;
     }
 
-    void ReturnTarget(Conjury* conjury) {
+    void ReturnTarget(Conjury *conjury) {
         return_target_ = conjury;
     }
 
@@ -164,14 +164,12 @@ class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
     using ConjuryClientImpl<ConjureGen<G>>::ConjuryClientImpl;
 
     const G *GetGenPtr() {
-        this->UnsafeSetState(State::kReady);
         return tunnel_.GetOne();
     }
 
     template <typename U>
     void StoreGen(U &&u) {
         tunnel_.Pass(std::forward<U>(u));
-        this->ReturnTarget()->UnsafeSetState(State::kReady);
     }
 
   private:

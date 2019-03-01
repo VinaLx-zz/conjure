@@ -43,15 +43,8 @@ class Conjurer {
 
     template <typename T>
     T Wait(ConjuryClient<T> *co) {
-        if (IsWaitedByOthers(co)) {
+        if (not WaitNextReturn(co)) {
             throw InconsistentWait(ActiveConjury(), co);
-        }
-        // Conjury *current = SetNextActive(co);
-        Conjury *current = ActiveConjury();
-        co->ReturnTarget(current);
-        if (not stage_.SwitchTo(co, State::kWaiting)) {
-            current->UnsafeSetState(State::kWaiting);
-            stage_.UnsafeSwitchTo(sche_co_.get());
         }
         T result = co->UnsafeGetResult();
         stage_.Destroy(co);
@@ -60,17 +53,15 @@ class Conjurer {
 
     void End() {
         CONJURE_LOGF("%s ending", ActiveConjury()->Name());
-        Conjury *next = nullptr;
         if (Conjury *target = ActiveConjury()->ReturnTarget();
             target != nullptr) {
             // TODO: is this assert correct?
             assert(target->GetState() == State::kWaiting);
-            next = target;
+            YieldBack(State::kFinished);
             // printf("parent is %s\n", next->Name());
         } else {
-            next = sche_co_.get();
+            YieldToScheduler(State::kFinished);
         }
-        stage_.UnsafeSwitchTo(next, State::kFinished);
     }
 
     template <typename P = Void>
@@ -81,11 +72,11 @@ class Conjurer {
         } else {
             scheduler_->RegisterSuspended(current, std::move(p));
         }
-        stage_.UnsafeSwitchTo(sche_co_.get(), State::kSuspended);
+        YieldToScheduler(State::kSuspended);
     }
 
     void Yield() {
-        stage_.UnsafeSwitchTo(sche_co_.get(), State::kReady);
+        YieldToScheduler(State::kReady);
     }
 
     bool Resume(Conjury *next) {
@@ -98,25 +89,22 @@ class Conjurer {
 
     template <typename U, typename G = std::decay_t<U>>
     void Yield(U &&u) {
-        // auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
-        // if (gen_co == nullptr) {
-        // throw InvalidYieldContext<G>(ActiveConjury());
-        // }
-        // gen_co->StoreGen(std::forward<U>(u));
-        // SetNextActive(gen_co->ReturnTarget());
-        // gen_co->Wait(*gen_co->ReturnTarget());
+        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
+        if (gen_co == nullptr or gen_co->ReturnTarget() == nullptr) {
+            throw InvalidYieldContext<G>(ActiveConjury());
+        }
+        gen_co->StoreGen(std::forward<U>(u));
+        YieldBack(State::kReady);
     }
 
     template <typename G>
     bool GenMoveNext(ConjuryClient<ConjureGen<G>> *gen_co) {
-        // Conjury *current = ActiveConjury();
-        // current->Wait(*gen_co);
-        // stage_.SwitchTo(gen_co);
-        // if (gen_co->IsFinished()) {
-        // Destroy(gen_co);
-        // return false;
-        // }
-        // return true;
+        WaitNextReturn(gen_co);
+        if (gen_co->IsFinished()) {
+            stage_.Destroy(gen_co);
+            return false;
+        }
+        return true;
     }
 
     Conjury *ActiveConjury() {
@@ -125,6 +113,19 @@ class Conjurer {
 
   private:
     static std::unique_ptr<Conjurer> instance_;
+
+    template <typename T>
+    bool WaitNextReturn(ConjuryClient<T> *co) {
+        if (IsWaitedByOthers(co)) {
+            return false;
+        }
+        co->ReturnTarget(ActiveConjury());
+        // TODO: when does this happen?
+        if (not stage_.SwitchTo(co, State::kWaiting)) {
+            YieldToScheduler(State::kWaiting);
+        }
+        return true;
+    }
 
     static Conjury::Pointer InitMainConjury() {
         auto main_co = std::make_unique<Conjury>();
@@ -149,6 +150,18 @@ class Conjurer {
     void YieldTo(Conjury *next) {
         scheduler_->RegisterReady(ActiveConjury());
         stage_.SwitchTo(next, State::kReady);
+    }
+
+    void YieldBack(State s) {
+        Conjury *target = ActiveConjury()->ReturnTarget();
+        assert(target != nullptr);
+        assert(target->GetState() == State::kWaiting);
+        stage_.UnsafeSwitchTo(target, s);
+    }
+
+    template <typename S = Void>
+    void YieldToScheduler(S s = S{}) {
+        stage_.UnsafeSwitchTo(sche_co_.get(), s);
     }
 
     template <typename R>

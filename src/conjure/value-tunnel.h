@@ -20,11 +20,8 @@ class ValueTunnel {
     }
 
     bool Pass(const T &value) {
-        if (Empty()) {
-            value_ptr_ = &value;
-            return true;
-        }
-        return false;
+        value_ptr_ = &value;
+        return true;
     }
 
   private:
