@@ -57,7 +57,7 @@ class Conjurer {
             target != nullptr) {
             // TODO: is this assert correct?
             assert(target->GetState() == State::kWaiting);
-            YieldBack(State::kFinished);
+            ForceYieldBack(State::kFinished);
             // printf("parent is %s\n", next->Name());
         } else {
             YieldToScheduler(State::kFinished);
@@ -76,25 +76,33 @@ class Conjurer {
     }
 
     void Yield() {
-        YieldToScheduler(State::kReady);
+        Conjury *return_target = ActiveConjury()->ReturnTarget();
+        if (return_target != nullptr and return_target->IsExecutable()) {
+            ForceYieldBack(State::kReady);
+        } else {
+            YieldToScheduler(State::kReady);
+        }
     }
 
     bool Resume(Conjury *next) {
         if (not state::IsExecutable(next->GetState())) {
             return false;
         }
-        YieldTo(next);
-        return true;
+        return WaitNextReturn(next, State::kReady);
     }
 
     template <typename U, typename G = std::decay_t<U>>
     void Yield(U &&u) {
-        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
-        if (gen_co == nullptr or gen_co->ReturnTarget() == nullptr) {
-            throw InvalidYieldContext<G>(ActiveConjury());
+        GenerateImpl(std::forward<U>(u));
+        ForceYieldBack(State::kReady);
+    }
+
+    template <typename U>
+    void Generate(U &&u) {
+        GenerateImpl(std::forward<U>(u));
+        if (Conjury *target = ActiveConjury()->ReturnTarget()) {
+            target->UnsafeSetState(State::kReady);
         }
-        gen_co->StoreGen(std::forward<U>(u));
-        YieldBack(State::kReady);
     }
 
     template <typename G>
@@ -114,15 +122,14 @@ class Conjurer {
   private:
     static std::unique_ptr<Conjurer> instance_;
 
-    template <typename T>
-    bool WaitNextReturn(ConjuryClient<T> *co) {
+    bool WaitNextReturn(Conjury *co, State s = State::kWaiting) {
         if (IsWaitedByOthers(co)) {
             return false;
         }
         co->ReturnTarget(ActiveConjury());
         // TODO: when does this happen?
-        if (not stage_.SwitchTo(co, State::kWaiting)) {
-            YieldToScheduler(State::kWaiting);
+        if (not stage_.SwitchTo(co, s)) {
+            YieldToScheduler(s);
         }
         return true;
     }
@@ -152,7 +159,7 @@ class Conjurer {
         stage_.SwitchTo(next, State::kReady);
     }
 
-    void YieldBack(State s) {
+    void ForceYieldBack(State s) {
         Conjury *target = ActiveConjury()->ReturnTarget();
         assert(target != nullptr);
         assert(target->GetState() == State::kWaiting);
@@ -162,6 +169,15 @@ class Conjurer {
     template <typename S = Void>
     void YieldToScheduler(S s = S{}) {
         stage_.UnsafeSwitchTo(sche_co_.get(), s);
+    }
+
+    template <typename U, typename G = std::decay_t<U>>
+    void GenerateImpl(U &&u) {
+        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
+        if (gen_co == nullptr or gen_co->ReturnTarget() == nullptr) {
+            throw InvalidYieldContext<G>(ActiveConjury());
+        }
+        gen_co->StoreGen(std::forward<U>(u));
     }
 
     template <typename R>

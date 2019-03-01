@@ -61,6 +61,10 @@ class Conjury {
         return state_;
     }
 
+    bool IsExecutable() const {
+        return state::IsExecutable(GetState());
+    }
+
     void UnsafeSetState(State state) {
         state_ = state;
     }
