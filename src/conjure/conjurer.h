@@ -43,7 +43,7 @@ class Conjurer {
 
     template <typename T>
     T Wait(ConjuryClient<T> *co) {
-        if (not WaitNextReturn(co)) {
+        if (not SetReturnTargetAndSwitch(co, State::kWaiting)) {
             throw InconsistentWait(ActiveConjury(), co);
         }
         T result = co->UnsafeGetResult();
@@ -90,7 +90,10 @@ class Conjurer {
             return false;
         }
         scheduler_->RegisterReady(ActiveConjury());
-        return WaitNextReturn(next, State::kReady);
+        if (not SetReturnTargetAndSwitch(next, State::kReady)) {
+            SwitchToTargetOrScheduler(next, State::kReady);
+        }
+        return true;
     }
 
     template <typename U, typename G = std::decay_t<U>>
@@ -109,7 +112,7 @@ class Conjurer {
 
     template <typename G>
     bool GenMoveNext(ConjuryClient<Generating<G>> *gen_co) {
-        WaitNextReturn(gen_co);
+        SetReturnTargetAndSwitch(gen_co, State::kWaiting);
         if (gen_co->IsFinished()) {
             stage_.Destroy(gen_co);
             return false;
@@ -124,16 +127,20 @@ class Conjurer {
   private:
     static std::unique_ptr<Conjurer> instance_;
 
-    bool WaitNextReturn(Conjury *co, State s = State::kWaiting) {
+    bool SetReturnTargetAndSwitch(Conjury *co, State s) {
         if (IsWaitedByOthers(co)) {
             return false;
         }
         co->ReturnTarget(ActiveConjury());
         // TODO: when does this happen?
+        SwitchToTargetOrScheduler(co, s);
+        return true;
+    }
+
+    void SwitchToTargetOrScheduler(Conjury *co, State s) {
         if (not stage_.SwitchTo(co, s)) {
             YieldToScheduler(s);
         }
-        return true;
     }
 
     static Conjury::Pointer InitMainConjury() {
