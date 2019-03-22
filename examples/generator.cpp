@@ -4,11 +4,11 @@
 
 using namespace conjure;
 
-ConjureGen<int> Fibonacci(int n) {
+Generating<int> Fibonacci(int n) {
     int x = 0, y = 1;
     for (int i = 0; i < n; ++i) {
         printf("yielding %d\n", x);
-        Yield(x);
+        YieldWith(x);
         int t = x + y;
         x = y;
         y = t;

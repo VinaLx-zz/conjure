@@ -28,7 +28,7 @@ struct Noise {
     int val;
 };
 
-ConjureGen<Noise> TestLifeCycle(int a) {
+Generating<Noise> TestLifeCycle(int a) {
     for (int i = 0; i < a; ++i) {
         Yield(Noise{i});
     }

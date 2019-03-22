@@ -77,6 +77,7 @@ class Conjurer {
 
     void Yield() {
         Conjury *return_target = ActiveConjury()->ReturnTarget();
+        scheduler_->RegisterReady(ActiveConjury());
         if (return_target != nullptr and return_target->IsExecutable()) {
             ForceYieldBack(State::kReady);
         } else {
@@ -88,11 +89,12 @@ class Conjurer {
         if (not state::IsExecutable(next->GetState())) {
             return false;
         }
+        scheduler_->RegisterReady(ActiveConjury());
         return WaitNextReturn(next, State::kReady);
     }
 
     template <typename U, typename G = std::decay_t<U>>
-    void Yield(U &&u) {
+    void YieldWith(U &&u) {
         GenerateImpl(std::forward<U>(u));
         ForceYieldBack(State::kReady);
     }
@@ -106,7 +108,7 @@ class Conjurer {
     }
 
     template <typename G>
-    bool GenMoveNext(ConjuryClient<ConjureGen<G>> *gen_co) {
+    bool GenMoveNext(ConjuryClient<Generating<G>> *gen_co) {
         WaitNextReturn(gen_co);
         if (gen_co->IsFinished()) {
             stage_.Destroy(gen_co);
@@ -173,7 +175,7 @@ class Conjurer {
 
     template <typename U, typename G = std::decay_t<U>>
     void GenerateImpl(U &&u) {
-        auto gen_co = GetActiveConjuryAs<ConjureGen<G>>();
+        auto gen_co = GetActiveConjuryAs<Generating<G>>();
         if (gen_co == nullptr or gen_co->ReturnTarget() == nullptr) {
             throw InvalidYieldContext<G>(ActiveConjury());
         }

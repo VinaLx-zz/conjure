@@ -107,7 +107,7 @@ void ConjuryCallWrapper(FunctionWrapper<F, Args...> *this_) {
 }
 
 template <typename Gen>
-struct ConjureGen {};
+struct Generating {};
 
 template <typename Result>
 class ConjuryClientImpl : public Conjury {
@@ -162,10 +162,10 @@ class ConjuryClient : public ConjuryClientImpl<Result> {
 };
 
 template <typename G>
-class ConjuryClient<ConjureGen<G>> : public ConjuryClientImpl<ConjureGen<G>> {
+class ConjuryClient<Generating<G>> : public ConjuryClientImpl<Generating<G>> {
   public:
     using Pointer = std::unique_ptr<ConjuryClient>;
-    using ConjuryClientImpl<ConjureGen<G>>::ConjuryClientImpl;
+    using ConjuryClientImpl<Generating<G>>::ConjuryClientImpl;
 
     const G *GetGenPtr() {
         return tunnel_.GetOne();

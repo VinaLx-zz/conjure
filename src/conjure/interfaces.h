@@ -48,13 +48,21 @@ T Wait(ConjuryClient<T> *co) {
 }
 
 template <typename G>
-bool GenMoveNext(ConjuryClient<ConjureGen<G>> *co) {
+bool GenMoveNext(ConjuryClient<Generating<G>> *co) {
     return Conjurer::Instance()->GenMoveNext(co);
 }
 
+template <typename G>
+const G *WaitGenerate(ConjuryClient<Generating<G>> *co) {
+    if (not GenMoveNext(co)) {
+        return nullptr;
+    }
+    return co->GetGenPtr();
+}
+
 template <typename U>
-void Yield(U &&u) {
-    return Conjurer::Instance()->Yield(std::forward<U>(u));
+void YieldWith(U &&u) {
+    return Conjurer::Instance()->YieldWith(std::forward<U>(u));
 }
 
 } // namespace conjure

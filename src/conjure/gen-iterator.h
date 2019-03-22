@@ -12,7 +12,7 @@ struct GenIterEnd {};
 template <typename G>
 struct GenIterator {
 
-    GenIterator(ConjuryClient<ConjureGen<G>> *conjure) : conjure(conjure) {}
+    GenIterator(ConjuryClient<Generating<G>> *conjure) : conjure(conjure) {}
 
     using Self = GenIterator;
     using value_type = G;
@@ -46,19 +46,19 @@ struct GenIterator {
         return s;
     }
 
-    ConjuryClient<ConjureGen<G>> *conjure;
+    ConjuryClient<Generating<G>> *conjure;
     const G* current_ptr;
 };
 
 template <typename G>
-GenIterator<G> begin(ConjuryClient<ConjureGen<G>> *co) {
+GenIterator<G> begin(ConjuryClient<Generating<G>> *co) {
     GenIterator<G> iter(co);
     ++iter;
     return iter;
 }
 
 template <typename G>
-GenIterEnd end(ConjuryClient<ConjureGen<G>> *co) {
+GenIterEnd end(ConjuryClient<Generating<G>> *co) {
     return {};
 }
 
