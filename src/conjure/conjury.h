@@ -57,6 +57,14 @@ class Conjury {
         return_target_ = conjury;
     }
 
+    Conjury* WaitTarget() {
+        return wait_target_;
+    }
+
+    void WaitTarget(Conjury* conjury) {
+        wait_target_ = conjury;
+    }
+
     State GetState() const {
         return state_;
     }
@@ -92,6 +100,7 @@ class Conjury {
 
     void *func_wrapper_this_ = nullptr;
     Conjury *return_target_ = nullptr;
+    Conjury *wait_target_ = nullptr;
 
     volatile bool wakeup_flag_ = false;
 
@@ -112,7 +121,7 @@ struct Generating {};
 template <typename Result>
 class ConjuryClientImpl : public Conjury {
     struct ResultStore {
-        virtual std::optional<Result> Get() = 0;
+        virtual std::optional<Result>& Get() = 0;
         virtual ~ResultStore() = default;
     };
     template <typename F, typename... Args>
@@ -122,10 +131,8 @@ class ConjuryClientImpl : public Conjury {
         ResultStoreImpl(FunctionWrapper<F, Args...> w)
             : wrapper(std::move(w)) {}
 
-        virtual std::optional<Result> Get() override {
-            std::optional<Result> result = std::move(wrapper.result_);
-            wrapper.result_.reset();
-            return result; // RVO
+        virtual std::optional<Result>& Get() override {
+            return wrapper.result_;
         }
 
         WrapperT wrapper;
@@ -147,7 +154,7 @@ class ConjuryClientImpl : public Conjury {
     }
 
     Result UnsafeGetResult() {
-        return result_->Get().value();
+        return std::move(result_->Get().value());
     }
 
   private:

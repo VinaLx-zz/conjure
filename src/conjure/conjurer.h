@@ -43,7 +43,8 @@ class Conjurer {
 
     template <typename T>
     T Wait(ConjuryClient<T> *co) {
-        if (not SetReturnTargetAndSwitch(co, State::kWaiting)) {
+        ActiveConjury()->WaitTarget(co);
+        if (not WaitAndSwitch(co)) {
             throw InconsistentWait(ActiveConjury(), co);
         }
         T result = co->UnsafeGetResult();
@@ -52,11 +53,13 @@ class Conjurer {
     }
 
     void End() {
-        CONJURE_LOGF("%s ending", ActiveConjury()->Name());
-        if (Conjury *target = ActiveConjury()->ReturnTarget();
-            target != nullptr) {
+        Conjury *me = ActiveConjury();
+        CONJURE_LOGF("%s ending", me->Name());
+        if (Conjury *target = me->ReturnTarget();
+            target != nullptr and target->WaitTarget() == me) {
             // TODO: is this assert correct?
             assert(target->GetState() == State::kWaiting);
+            target->WaitTarget(nullptr);
             ForceYieldBack(State::kFinished);
             // printf("parent is %s\n", next->Name());
         } else {
@@ -90,9 +93,7 @@ class Conjurer {
             return false;
         }
         scheduler_->RegisterReady(ActiveConjury());
-        if (not SetReturnTargetAndSwitch(next, State::kReady)) {
-            SwitchToTargetOrScheduler(next, State::kReady);
-        }
+        SetReturnTargetAndSwitch(next, State::kReady);
         return true;
     }
 
@@ -112,7 +113,8 @@ class Conjurer {
 
     template <typename G>
     bool GenMoveNext(ConjuryClient<Generating<G>> *gen_co) {
-        SetReturnTargetAndSwitch(gen_co, State::kWaiting);
+        ActiveConjury()->WaitTarget(gen_co);
+        WaitAndSwitch(gen_co);
         if (gen_co->IsFinished()) {
             stage_.Destroy(gen_co);
             return false;
@@ -127,14 +129,20 @@ class Conjurer {
   private:
     static std::unique_ptr<Conjurer> instance_;
 
-    bool SetReturnTargetAndSwitch(Conjury *co, State s) {
+    bool WaitAndSwitch(Conjury *co) {
         if (IsWaitedByOthers(co)) {
             return false;
         }
         co->ReturnTarget(ActiveConjury());
+        ActiveConjury()->WaitTarget(co);
+        SwitchToTargetOrScheduler(co, State::kWaiting);
+        return true;
+    }
+
+    void SetReturnTargetAndSwitch(Conjury *co, State s) {
+        co->ReturnTarget(ActiveConjury());
         // TODO: when does this happen?
         SwitchToTargetOrScheduler(co, s);
-        return true;
     }
 
     void SwitchToTargetOrScheduler(Conjury *co, State s) {
