@@ -55,6 +55,14 @@ class Conjurer {
         return result; // NRVO
     }
 
+    void Wait(Conjury* co) {
+        ActiveConjury()->WaitTarget(co);
+        if (not WaitAndSwitch(co)) {
+            throw InconsistentWait(ActiveConjury(), co);
+        }
+        stage_.Destroy(co);
+    }
+
     void End() {
         Conjury *me = ActiveConjury();
         CONJURE_LOGF("%s ending", me->Name());

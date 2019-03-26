@@ -47,6 +47,10 @@ T Wait(ConjuryClient<T> *co) {
     return Conjurer::Instance()->Wait(co);
 }
 
+inline void Wait(Conjury* co) {
+    Conjurer::Instance()->Wait(co);
+}
+
 template <typename G>
 bool GenMoveNext(ConjuryClient<Generating<G>> *co) {
     return Conjurer::Instance()->GenMoveNext(co);
