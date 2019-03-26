@@ -11,9 +11,16 @@
 
 namespace conjure {
 
+class Conjurer;
+
 class Scheduler {
   public:
+    Scheduler(Conjurer *conjurer)
+        : conjurer_(conjurer), current_suspended_queue_(&suspended_queue_) {}
+
     using Pointer = std::unique_ptr<Scheduler>;
+
+    static void Run(Scheduler *sche);
 
     void RegisterReady(Conjury *c) {
         ready_queue_.push_back(c);
@@ -25,20 +32,7 @@ class Scheduler {
 
     template <typename P>
     void RegisterSuspended(Conjury *c, P p) {
-        suspended_queue_.emplace_back(c, std::move(p));
-    }
-
-    Conjury *GetNext() {
-        CONJURE_LOGF(
-            "scheduler: ready: %d, suspended: %d", (int)ready_queue_.size(),
-            (int)suspended_queue_.size());
-        for (;;) {
-            if (Conjury *c = TryGetReadyQueueNext()) {
-                return c;
-            }
-            TryRefreshBlockingQueue();
-        }
-        return nullptr;
+        current_suspended_queue_->emplace_back(c, std::move(p));
     }
 
   private:
@@ -50,21 +44,7 @@ class Scheduler {
 
         enum ActionState { kReady, kSuspending, kIgnore };
 
-        SuspendedConjury::ActionState ObserveState() {
-            c->ConsumeWakeUp();
-            State s = c->GetState();
-            if (s == State::kReady) {
-                return ActionState::kReady;
-            }
-            if (s == State::kSuspended) {
-                if (ready_pred and ready_pred()) {
-                    c->UnsafeSetState(State::kReady);
-                    return ActionState::kReady;
-                }
-                return ActionState::kSuspending;
-            }
-            return ActionState::kIgnore;
-        }
+        SuspendedConjury::ActionState ObserveState();
 
         const char *Name() {
             return c->Name();
@@ -74,47 +54,23 @@ class Scheduler {
         std::function<bool()> ready_pred;
     };
 
-    Conjury *TryGetReadyQueueNext() {
-        for (; not ready_queue_.empty();) {
-            Conjury *c = ready_queue_.front();
-            ready_queue_.pop_front();
-            if (c->GetState() == State::kReady) {
-                return c;
-            } else {
-                CONJURE_LOGF(
-                    "ready_queue ignore: %s, state: %s", c->Name(),
-                    state::ToString(c->GetState()));
-            }
-        }
-        return nullptr;
-    }
+    static void YieldFromReadyQueue(Scheduler &sche);
 
-    void TryRefreshBlockingQueue() {
-        assert(ready_queue_.empty());
-        assert(not suspended_queue_.empty());
-        int new_blocking_end = 0;
-        for (int i = 0; i < suspended_queue_.size(); ++i) {
-            auto &c = suspended_queue_[i];
-            switch (c.ObserveState()) {
-            case SuspendedConjury::kReady:
-                RegisterReady(c.c);
-                CONJURE_LOGF("ready from blocking_queue: %s", c.c->Name());
-                break;
-            case SuspendedConjury::kSuspending:
-                suspended_queue_[new_blocking_end++] = std::move(c);
-                break;
-            default:
-                CONJURE_LOGF(
-                    "blocking_queue ignored: %s, state: %s", c.c->Name(),
-                    state::ToString(c.c->GetState()));
-            }
-        }
-        suspended_queue_.erase(
-            begin(suspended_queue_) + new_blocking_end, end(suspended_queue_));
-    }
+    static void YieldFromSuspendedQueue(Scheduler &sche);
+
+    void YieldTo(Conjury *conjury);
+
+    void UseBakSuspendedQueue(); 
+
+    void UseMajorSuspendedQueue();
+
+    Conjurer *conjurer_;
 
     std::deque<Conjury *> ready_queue_;
     std::vector<SuspendedConjury> suspended_queue_;
+    std::vector<SuspendedConjury> bak_suspended_queue_;
+
+    std::vector<SuspendedConjury> *current_suspended_queue_;
 };
 
 } // namespace conjure

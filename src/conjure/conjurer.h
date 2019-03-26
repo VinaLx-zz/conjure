@@ -16,11 +16,14 @@ template <typename F, typename... Args>
 using ConjuryClientT = ConjuryClient<WrapperResultT<F, Args...>>;
 
 class Conjurer {
+    friend class Scheduler;
+
   public:
     Conjurer()
-        : stage_(InitMainConjury()), scheduler_(std::make_unique<Scheduler>()),
-          sche_co_(
-              UnmanagedConjure(Config("__scheduler__"), &RunScheduler, this)) {
+        : stage_(InitMainConjury()),
+          scheduler_(std::make_unique<Scheduler>(this)),
+          sche_co_(UnmanagedConjure(
+              Config("__scheduler__"), &Scheduler::Run, scheduler_.get())) {
         // printf(
         // "main_co: %p, scheduler: %p\n", active_conjury_, sche_co_.get());
     }
@@ -157,15 +160,6 @@ class Conjurer {
         return main_co;
     }
 
-    static void RunScheduler(Conjurer *conjurer) {
-        for (;;) {
-            Conjury *next = conjurer->scheduler_->GetNext();
-            if (next != nullptr) {
-                conjurer->stage_.UnsafeSwitchTo(next);
-            }
-        }
-    }
-
     bool IsWaitedByOthers(Conjury *c) {
         return c->ReturnTarget() != nullptr and
                c->ReturnTarget() != ActiveConjury();
@@ -181,6 +175,14 @@ class Conjurer {
         assert(target != nullptr);
         assert(target->GetState() == State::kWaiting);
         stage_.UnsafeSwitchTo(target, s);
+    }
+
+    template <typename G>
+    const G *WaitGenerate(ConjuryClient<Generating<G>> *co) {
+        if (not GenMoveNext(co)) {
+            return nullptr;
+        }
+        return co->GetGenPtr();
     }
 
     template <typename S = Void>
