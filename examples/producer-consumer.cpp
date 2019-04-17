@@ -10,13 +10,16 @@ std::queue<int> q;
 bool finished = false;
 int count = 0;
 
+constexpr int kNProducer = 2;
+constexpr int kNConsumer = 3;
+
 void Consume(int consumer, int product) {
     printf("consumer %d: %d\n", consumer, product);
 }
 
 void Consumer(int id) {
     for (;;) {
-        SuspendUntil([]() { return not q.empty() or finished; });
+        SuspendUntil<false>([]() { return not q.empty() or finished; });
         if (finished) break;
         int a = q.front();
         q.pop();
@@ -25,8 +28,8 @@ void Consumer(int id) {
 }
 
 Generating<int> MakeProducts(int id, int batch) {
-    for (int i = 1; i <= 10; ++i) {
-        for (int j = 0; j < batch; ++j) YieldWith(i * id);
+    for (int i = 1; i <= 3; ++i) {
+        for (int j = 1; j <= batch; ++j) YieldWith(i + (id * 10));
 
         SuspendUntil([]() { return q.empty(); });
     }
@@ -34,19 +37,19 @@ Generating<int> MakeProducts(int id, int batch) {
 }
 
 void Producer(int id) {
-    auto products = Conjure(Config{}, MakeProducts, id, 3);
+    auto products = Conjure(Config{}, MakeProducts, id, 2);
     for (int product : products) {
         printf("producer %d: %d\n", id, product);
         q.push(product);
     }
-    if (++count == 3) {
+    if (++count == kNProducer) {
         finished = true;
     }
 }
 
 int main() {
-    std::vector<Conjury *> producers(3);
-    std::vector<Conjury *> consumers(5);
+    std::vector<Conjury *> producers(kNProducer);
+    std::vector<Conjury *> consumers(kNConsumer);
 
     for (int i = 0; i < producers.size(); ++i)
         producers[i] = Conjure(Config{}, Producer, i);
