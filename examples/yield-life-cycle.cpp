@@ -30,7 +30,7 @@ struct Noise {
 
 Generating<Noise> TestLifeCycle(int a) {
     for (int i = 0; i < a; ++i) {
-        Yield(Noise{i});
+        YieldWith(Noise{i});
     }
     return {};
 }
